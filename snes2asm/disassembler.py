@@ -1,27 +1,27 @@
 
 import snes2asm
+import pdb
 from collections import OrderedDict
-import io
 
 from snes2asm.cartridge import Cartridge
 
 InstructionSizes = [
-	2, 3, 1, 1, 3, 3, 3, 1, 2, 3, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 4, 4, 4, 1,
-	4, 3, 1, 1, 3, 3, 3, 1, 2, 3, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 4, 4, 4, 1,
-	2, 3, 1, 1, 3, 3, 3, 1, 2, 3, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 4, 4, 4, 1,
-	2, 3, 1, 1, 3, 3, 3, 1, 2, 3, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 1, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 1, 4, 1, 1,
-	3, 3, 3, 1, 3, 3, 3, 1, 2, 3, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 3, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 3, 2, 1, 4, 4, 4, 1,
-	3, 3, 1, 1, 3, 3, 3, 1, 2, 4, 2, 1, 4, 4, 4, 1
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x0
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # x1
+	3, 2, 4, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x2
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # x3
+	1, 2, 2, 2, 3, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x4
+	2, 2, 2, 2, 3, 2, 2, 2, 1, 3, 1, 1, 4, 3, 3, 4, # x5
+	1, 2, 3, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x6
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # x7
+	2, 2, 3, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x8
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # x9
+    2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # xA
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xB
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # xC
+    2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xD
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # xE
+	2, 2, 2, 2, 3, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xF 
 ]
 
 class Disassembler:
@@ -36,21 +36,19 @@ class Disassembler:
 	def run(self):
 
 		size = len(self.cart.data)
-
 		while self.pos < size:
 			op = self.cart[self.pos]
 			op_size = self.opSize(op)
 
-			if (self.cart.address(pos) & 0xFFFF) + op_size > 0xFFFF:
-				print("Opcode %02X overrunning bank boundry at %X. Skipping." % (op, self.pos))
+			if (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
+				print(";Opcode %02X overrunning bank boundry at %X. Skipping." % (op, self.pos))
 				self.ins(".byte $%02X" % op)
 				self.pos = self.pos + 1
 				continue
 				
-
 			func = getattr(self, 'op%02X' % op)
 			if not func:
-				print("Unhandled opcode: %02X at %X" % (op, self.pos))
+				print(";Unhandled opcode: %02X at %X" % (op, self.pos))
 				self.ins(".byte $%02X" % op)
 				self.pos = self.pos + 1
 				continue
@@ -70,11 +68,11 @@ class Disassembler:
 	def ins(self, code, preamble=None, comment=None):
 		self.instr[self.cart.address(self.pos)] = Instruction(code,preamble,comment)
 
-	def opSize(op):
+	def opSize(self, op):
 		size = InstructionSizes[op]
 		if self.acc16() and op in [0x09,0x69, 0x29, 0x89, 0xC9, 0x49, 0xE9, 0xA9]:
 			size = size + 1
-		if self.ind16() and op in [0xE0, 0xC0, 0xA2]:
+		if self.ind16() and op in [0xE0, 0xC0, 0xA2, 0xA0]:
 			size = size + 1
 		return size
 
@@ -175,7 +173,7 @@ class Disassembler:
 
 	# ASL
 	def op0A(self):
-		self.ins("asl")
+		self.ins("asl A")
 
 	def op0E(self):
 		self.ins("asl" + self.abs())
@@ -191,43 +189,43 @@ class Disassembler:
 
 	# BCC
 	def op90(self):
-		self.ins("bcc")
+		self.ins("bcc" + self.branch())
  
  	# BCS
 	def opB0(self):
-		self.ins("bcs")
+		self.ins("bcs" + self.branch())
  
  	# BEQ
 	def opF0(self):
-		self.ins("beq")
+		self.ins("beq" + self.branch())
  
  	# BNE
 	def opD0(self):
-		self.ins("bne")
+		self.ins("bne" + self.branch())
  
  	# BMI
 	def op30(self):
-		self.ins("bmi")
+		self.ins("bmi" + self.branch())
  
  	# BPL
 	def op10(self):
-		self.ins("bpl")
+		self.ins("bpl" + self.branch())
  
  	# BVC
 	def op50(self):
-		self.ins("bvc")
+		self.ins("bvc" + self.branch())
  
  	# BVS
 	def op70(self):
-		self.ins("bvs")
+		self.ins("bvs" + self.branch())
  
  	# BRA
 	def op80(self):
-		self.ins("bra")
+		self.ins("bra" + self.branch())
  
  	# BRL
 	def op82(self):
-		self.ins("brl")
+		self.ins("brl" + self.pc_rel_long())
 
 	# BIT
 	def op89(self):
@@ -312,7 +310,7 @@ class Disassembler:
 		self.ins("cmp" + self.dir_page_ind_indir_x())
 
 	def opD1(self):
-		self.ins("cmp" + self.dir_page_indir_y())
+		self.ins("cmp" + self.dir_page_ind_indir_y())
 
 	def opD7(self):
 		self.ins("cmp" + self.dir_page_indir_long_y())
@@ -324,7 +322,7 @@ class Disassembler:
 		self.ins("cmp" + self.stack_rel_indir_y())
 
 	# COP
-	def opD3(self):
+	def op02(self):
 		self.ins("cop" + self.stack_interrupt())
 
 	# CPX
@@ -334,7 +332,7 @@ class Disassembler:
 	def opEC(self):
 		self.ins("cpx" + self.abs())
 
-	def opEC(self):
+	def opE4(self):
 		self.ins("cpx" + self.dir_page())
 
 	# CPY
@@ -406,7 +404,7 @@ class Disassembler:
 		self.ins("eor" + self.dir_page_ind_indir_x())
 
 	def op51(self):
-		self.ins("eor" + self.dir_page_indir_y())
+		self.ins("eor" + self.dir_page_ind_indir_y())
 
 	def op57(self):
 		self.ins("eor" + self.dir_page_indir_long_y())
@@ -439,7 +437,7 @@ class Disassembler:
 
 	# INY
 	def opC8(self):
-		self.ins("inc A")
+		self.ins("iny")
 
 	# JMP
 	def op4C(self):
@@ -465,7 +463,7 @@ class Disassembler:
 		self.ins("jsr" + self.abs())
 
 	def opFC(self):
-		self.ins("jsr" + self.abs_ind_x())
+		self.ins("jsr" + self.abs_ind_indir())
 
 	# LDA
 	def opA9(self):
@@ -502,7 +500,7 @@ class Disassembler:
 		self.ins("lda" + self.dir_page_ind_indir_x())
 
 	def opB1(self):
-		self.ins("lda" + self.dir_page_indir_y())
+		self.ins("lda" + self.dir_page_ind_indir_y())
 
 	def opB7(self):
 		self.ins("lda" + self.dir_page_indir_long_y())
@@ -531,7 +529,7 @@ class Disassembler:
 
 	# LDY
 	def opA0(self):
-		self.ins("ldy" + self.immidate_ind())
+		self.ins("ldy" + self.immediate_ind())
 
 	def opAC(self):
 		self.ins("ldy" + self.abs())
@@ -543,7 +541,7 @@ class Disassembler:
 		self.ins("ldy" + self.abs_ind_x())
 
 	def opB4(self):
-		self.ins("ldy" + self.dir_page_ind_y())
+		self.ins("ldy" + self.dir_page_ind_x())
 
 	# LSR
 	def op4A(self):
@@ -608,7 +606,7 @@ class Disassembler:
 		self.ins("ora" + self.dir_page_ind_indir_x())
 
 	def op11(self):
-		self.ins("ora" + self.dir_page_indir_y())
+		self.ins("ora" + self.dir_page_ind_indir_y())
 
 	def op17(self):
 		self.ins("ora" + self.dir_page_indir_long_y())
@@ -691,21 +689,21 @@ class Disassembler:
 		if val & 0x20:
 			pre = ".ACCUM16"
 		if val & 0x10:
-			pre = "" if pre == None else pre + "\n"
+			pre = pre + "\n" if pre else ""
 			pre = pre + ".INDEX16"
-		self.ins("rep", " #$%02X" % self.pipe8(), pre )
+		self.ins("rep #$%02X" % self.pipe8(), pre )
 
 	# SEP
 	def opE2(self):
 		val = self.pipe8()
-		self.flags = self.flags & val
+		self.flags = self.flags | val
 		pre = None
 		if val & 0x20:
 			pre = ".ACCUM8"
 		if val & 0x10:
-			pre = "" if pre == None else pre + "\n"
+			pre = pre + "\n" if pre else ""
 			pre = pre + ".INDEX8"
-		self.ins("sep", " #$%02X" % self.pipe8(), pre )
+		self.ins("sep #$%02X" % self.pipe8(), pre )
 
 	# ROL
 	def op2A(self):
@@ -829,7 +827,7 @@ class Disassembler:
 		self.ins("sta" + self.dir_page_ind_indir_x())
 
 	def op91(self):
-		self.ins("sta" + self.dir_page_indir_ind_y())
+		self.ins("sta" + self.dir_page_ind_indir_y())
 
 	def op97(self):
 		self.ins("sta" + self.dir_page_indir_long_y())
@@ -945,7 +943,7 @@ class Disassembler:
  
  	# WDM
 	def op42(self):
-		self.ins("wdm" + " #$%02X" % self.pipe8())
+		self.ins("wdm" + " $%02X" % self.pipe8())
  
  	# XBA
 	def opEB(self):
@@ -988,7 +986,7 @@ class Disassembler:
 		return " $%04X,Y" % self.pipe16()
 
 	def abs_long(self):
-		return " $%0^X" % self.pipe24()
+		return " $%06X" % self.pipe24()
 	
 	def abs_long_ind_x(self):
 		return " $%06X,X" % self.pipe24()
@@ -1012,7 +1010,7 @@ class Disassembler:
 		return " ($%02X,X)" % self.pipe8()
 
 	def dir_page_ind_indir_y(self):
-		return " ($%02X,Y)" % self.pipe8()
+		return " ($%02X),Y" % self.pipe8()
 
 	def dir_page_indir_long_y(self):
 		return " [$%02X],Y" % self.pipe8()
@@ -1029,15 +1027,21 @@ class Disassembler:
 	def block_move(self):
 		return "$%02X,$%02X" % (self.cart[self.pos+1], self.cart[self.pos+2])
 
+	def branch(self):
+		val = self.pipe8()
+		if val > 127:
+			val = val - 256
+		return " $%04X" % ((self.cart.address(self.pos) + val + 2) & 0xFFFF)
+
 	def pc_rel_long(self):
 		val = self.pipe16()
 		if val > 32767:
 			val = val - 65536
-		addr = (self.pos + 3 + val) & 0xFFFF
+		addr = (self.cart.address(self.pos) + 3 + val) & 0xFFFF
 		return " $%04lX" % addr
 
 	def pipe8(self):
-		self.cart[self.pos+1]
+		return self.cart[self.pos+1]
 
 	def pipe16(self):
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8)
@@ -1045,8 +1049,7 @@ class Disassembler:
 	def pipe24(self):
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
-
-	def output(path):
+	def output(self, path):
 		pass
 
 
@@ -1057,4 +1060,5 @@ class Instruction:
 		self.preamble = preamble
 
 	def __str__(self):
-		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "  " + self.comment if comment else "")
+		return self.code
+		#return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "  " + self.comment if self.comment else "")
