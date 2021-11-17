@@ -1,6 +1,4 @@
-
 import snes2asm
-import pdb
 from collections import OrderedDict
 
 from snes2asm.cartridge import Cartridge
@@ -26,34 +24,89 @@ InstructionSizes = [
 
 class Disassembler:
 
-	def __init__(self, cart):
+	def __init__(self, cart, options={}):
 		self.cart = cart
+		self.options = options
 		self.pos = 0
 		self.flags = 0
 		self.labels = set()
-		self.instr = OrderedDict()
+		self.banks = [None for a in range(0,self.cart.bank_count())]
 
 	def run(self):
 
-		size = len(self.cart.data)
-		while self.pos < size:
+		if self.options.banks:
+			for b in self.options.banks:
+				if b < self.cart.bank_count():
+					self.banks[b] = self.decode_bank(b)
+				else:
+					print("Invalid bank %d" % b)
+		else:
+			self.auto_run()
+
+		self.fill_data_banks()
+
+	def auto_run(self):
+
+		# Decode first bank
+		self.banks[0] = self.decode_bank(0)	
+
+		while True:
+			remaining = False 
+			for label in self.labels:
+				bank = self.cart.bank_from_label(label)
+				if self.banks[bank] == None:
+					remaining = True
+					self.banks[bank] = self.decode_bank(bank)
+
+			if not remaining:
+				break
+
+	def decode_bank(self, bank):
+		start = self.cart.bank_size() * bank
+		end = start + self.cart.bank_size()
+		return self.decode(start, end)
+	
+	def decode(self, start, end):
+
+		code = OrderedDict()
+
+		self.pos = start
+		while self.pos < end:
 			op = self.cart[self.pos]
 			op_size = self.opSize(op)
 
 			if (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
 				print(";Opcode %02X overrunning bank boundry at %X. Skipping." % (op, self.pos))
-				self.ins(".byte $%02X" % op)
+				return self.ins(".byte $%02X" % op)
 				self.pos = self.pos + 1
 				continue
 				
 			func = getattr(self, 'op%02X' % op)
 			if not func:
 				print(";Unhandled opcode: %02X at %X" % (op, self.pos))
-				self.ins(".byte $%02X" % op)
+				return self.ins(".byte $%02X" % op)
 				self.pos = self.pos + 1
 				continue
-			func()
+			code[self.cart.address(self.pos)] = func()
 			self.pos = self.pos + op_size
+		return code
+
+	def fill_data_banks(self):
+		for i in range(0, len(self.banks)):
+			if self.banks[i] == None:
+				self.banks[i] = self.make_data_bank(i)
+
+	def make_data_bank(self, bank):
+		print "make_data_bank = " + str(bank)
+		code = OrderedDict()
+		start = bank * self.cart.bank_size()
+		end = start + bank * self.cart.bank_size()
+
+		for y in range(start, end, 16):
+			line = '.byte ' + ', '.join(("0x%02X" % x) for x in self.cart[y : y+16])
+			code[self.cart.address(y)] = self.ins(line)
+
+		return code
 
 	def acc16(self):
 		return self.flags & 0x20 == 0
@@ -62,624 +115,629 @@ class Disassembler:
 		return self.flags & 0x10 == 0
 
 	def set_label(self, address):
-		self.labels.add(address)	
+		print("set_label = %06X" % address)
+		self.labels.add(address)
 
 	# Append instruction
 	def ins(self, code, preamble=None, comment=None):
-		self.instr[self.cart.address(self.pos)] = Instruction(code,preamble,comment)
+		return Instruction(code,preamble,comment)
 
 	def opSize(self, op):
 		size = InstructionSizes[op]
 		if self.acc16() and op in [0x09,0x69, 0x29, 0x89, 0xC9, 0x49, 0xE9, 0xA9]:
 			size = size + 1
-		if self.ind16() and op in [0xE0, 0xC0, 0xA2, 0xA0]:
+		elif self.ind16() and op in [0xE0, 0xC0, 0xA2, 0xA0]:
 			size = size + 1
 		return size
 
 	def op01(self):
-		self.ins("ora" + self.dir_page_ind_indir_x())
+		return self.ins("ora" + self.dir_page_ind_indir_x())
 
 	# ADC
 	def op69(self):
-		self.ins("adc" + self.immediate())
+		return self.ins("adc" + self.immediate())
 
 	def op6D(self):
-		self.ins("adc" + self.abs())
+		return self.ins("adc" + self.abs())
 
 	def op6F(self):
-		self.ins("adc" + self.abs_long())
+		return self.ins("adc" + self.abs_long())
 
 	def op65(self):
-		self.ins("adc" + self.dir_page())
+		return self.ins("adc" + self.dir_page())
 
 	def op72(self):
-		self.ins("adc" + self.dir_page_indir())
+		return self.ins("adc" + self.dir_page_indir())
 
 	def op67(self):
-		self.ins("adc" + self.dir_page_indir_long())
+		return self.ins("adc" + self.dir_page_indir_long())
 
 	def op7D(self):
-		self.ins("adc" + self.abs_ind_x())
+		return self.ins("adc" + self.abs_ind_x())
 
 	def op7F(self):
-		self.ins("adc" + self.abs_long_ind_x())
+		return self.ins("adc" + self.abs_long_ind_x())
 
 	def op79(self):
-		self.ins("adc" + self.abs_ind_y())
+		return self.ins("adc" + self.abs_ind_y())
 
 	def op75(self):
-		self.ins("adc" + self.dir_page_ind_x())
+		return self.ins("adc" + self.dir_page_ind_x())
 
 	def op61(self):
-		self.ins("adc" + self.dir_page_ind_indir_x())
+		return self.ins("adc" + self.dir_page_ind_indir_x())
 
 	def op71(self):
-		self.ins("adc" + self.dir_page_ind_indir_y())
+		return self.ins("adc" + self.dir_page_ind_indir_y())
 
 	def op77(self):
-		self.ins("adc" + self.dir_page_indir_long_y())
+		return self.ins("adc" + self.dir_page_indir_long_y())
 
 	def op63(self):
-		self.ins("adc" + self.stack_rel())
+		return self.ins("adc" + self.stack_rel())
 
 	def op73(self):
-		self.ins("adc" + self.stack_rel_indir_y())
+		return self.ins("adc" + self.stack_rel_indir_y())
 
 	# AND
 	def op29(self):
-		self.ins("and" + self.immediate())
+		return self.ins("and" + self.immediate())
 
 	def op2D(self):
-		self.ins("and" + self.abs())
+		return self.ins("and" + self.abs())
 
 	def op2F(self):
-		self.ins("and" + self.abs_long())
+		return self.ins("and" + self.abs_long())
 
 	def op25(self):
-		self.ins("and" + self.dir_page())
+		return self.ins("and" + self.dir_page())
 
 	def op32(self):
-		self.ins("and" + self.dir_page_indir())
+		return self.ins("and" + self.dir_page_indir())
 
 	def op27(self):
-		self.ins("and" + self.dir_page_indir_long())
+		return self.ins("and" + self.dir_page_indir_long())
 
 	def op3D(self):
-		self.ins("and" + self.abs_ind_x())
+		return self.ins("and" + self.abs_ind_x())
 
 	def op3F(self):
-		self.ins("and" + self.abs_long_ind_x())
+		return self.ins("and" + self.abs_long_ind_x())
 
 	def op39(self):
-		self.ins("and" + self.abs_ind_y())
+		return self.ins("and" + self.abs_ind_y())
 
 	def op35(self):
-		self.ins("and" + self.dir_page_ind_x())
+		return self.ins("and" + self.dir_page_ind_x())
 
 	def op21(self):
-		self.ins("and" + self.dir_page_ind_indir_x())
+		return self.ins("and" + self.dir_page_ind_indir_x())
 
 	def op31(self):
-		self.ins("and" + self.dir_page_ind_indir_y())
+		return self.ins("and" + self.dir_page_ind_indir_y())
 
 	def op37(self):
-		self.ins("and" + self.dir_page_indir_long_y())
+		return self.ins("and" + self.dir_page_indir_long_y())
 
 	def op23(self):
-		self.ins("and" + self.stack_rel())
+		return self.ins("and" + self.stack_rel())
 
 	def op33(self):
-		self.ins("and" + self.stack_rel_indir_y())
+		return self.ins("and" + self.stack_rel_indir_y())
 
 	# ASL
 	def op0A(self):
-		self.ins("asl A")
+		return self.ins("asl A")
 
 	def op0E(self):
-		self.ins("asl" + self.abs())
+		return self.ins("asl" + self.abs())
 
 	def op06(self):
-		self.ins("asl" + self.dir_page())
+		return self.ins("asl" + self.dir_page())
 
 	def op1E(self):
-		self.ins("asl" + self.abs_ind_x())
+		return self.ins("asl" + self.abs_ind_x())
 
 	def op16(self):
-		self.ins("asl" + self.dir_page_ind_x())
+		return self.ins("asl" + self.dir_page_ind_x())
 
 	# BCC
 	def op90(self):
-		self.ins("bcc" + self.branch())
+		return self.ins("bcc" + self.branch())
  
  	# BCS
 	def opB0(self):
-		self.ins("bcs" + self.branch())
+		return self.ins("bcs" + self.branch())
  
  	# BEQ
 	def opF0(self):
-		self.ins("beq" + self.branch())
+		return self.ins("beq" + self.branch())
  
  	# BNE
 	def opD0(self):
-		self.ins("bne" + self.branch())
+		return self.ins("bne" + self.branch())
  
  	# BMI
 	def op30(self):
-		self.ins("bmi" + self.branch())
+		return self.ins("bmi" + self.branch())
  
  	# BPL
 	def op10(self):
-		self.ins("bpl" + self.branch())
+		return self.ins("bpl" + self.branch())
  
  	# BVC
 	def op50(self):
-		self.ins("bvc" + self.branch())
+		return self.ins("bvc" + self.branch())
  
  	# BVS
 	def op70(self):
-		self.ins("bvs" + self.branch())
+		return self.ins("bvs" + self.branch())
  
  	# BRA
 	def op80(self):
-		self.ins("bra" + self.branch())
+		return self.ins("bra" + self.branch())
  
  	# BRL
 	def op82(self):
-		self.ins("brl" + self.pc_rel_long())
+		return self.ins("brl" + self.pc_rel_long())
 
 	# BIT
 	def op89(self):
-		self.ins("bit" + self.immediate())
+		return self.ins("bit" + self.immediate())
 
 	def op2C(self):
-		self.ins("bit" + self.abs())
+		return self.ins("bit" + self.abs())
 
 	def op24(self):
-		self.ins("bit" + self.dir_page())
+		return self.ins("bit" + self.dir_page())
 
 	def op3C(self):
-		self.ins("bit" + self.abs_ind_x())
+		return self.ins("bit" + self.abs_ind_x())
 
 	def op34(self):
-		self.ins("bit" + self.dir_page_ind_x())
+		return self.ins("bit" + self.dir_page_ind_x())
  
  	# BRK
 	def op00(self):
-		self.ins("brk" + self.stack_interrupt())
+		return self.ins("brk" + self.stack_interrupt())
  
  	# CLC
 	def op18(self):
-		self.ins("clc")
+		return self.ins("clc")
  
  	# CLD
 	def opD8(self):
-		self.ins("cld")
+		return self.ins("cld")
  
  	# CLI
 	def op58(self):
-		self.ins("cli")
+		return self.ins("cli")
  
  	# CLV
 	def opB8(self):
-		self.ins("clv")
+		return self.ins("clv")
  
  	# SEC
 	def op38(self):
-		self.ins("sec")
+		return self.ins("sec")
  
  	# SED
 	def opF8(self):
-		self.ins("sed")
+		return self.ins("sed")
  
  	# SEI
 	def op78(self):
-		self.ins("sei")
+		return self.ins("sei")
 
 	# CMP
 	def opC9(self):
-		self.ins("cmp" + self.immediate())
+		return self.ins("cmp" + self.immediate())
 
 	def opCD(self):
-		self.ins("cmp" + self.abs())
+		return self.ins("cmp" + self.abs())
 
 	def opCF(self):
-		self.ins("cmp" + self.abs_long())
+		return self.ins("cmp" + self.abs_long())
 
 	def opC5(self):
-		self.ins("cmp" + self.dir_page())
+		return self.ins("cmp" + self.dir_page())
 
 	def opD2(self):
-		self.ins("cmp" + self.dir_page_indir())
+		return self.ins("cmp" + self.dir_page_indir())
 
 	def opC7(self):
-		self.ins("cmp" + self.dir_page_indir_long())
+		return self.ins("cmp" + self.dir_page_indir_long())
 
 	def opDD(self):
-		self.ins("cmp" + self.abs_ind_x())
+		return self.ins("cmp" + self.abs_ind_x())
 
 	def opDF(self):
-		self.ins("cmp" + self.abs_long_ind_x())
+		return self.ins("cmp" + self.abs_long_ind_x())
 
 	def opD9(self):
-		self.ins("cmp" + self.abs_ind_y())
+		return self.ins("cmp" + self.abs_ind_y())
 
 	def opD5(self):
-		self.ins("cmp" + self.dir_page_ind_x())
+		return self.ins("cmp" + self.dir_page_ind_x())
 
 	def opC1(self):
-		self.ins("cmp" + self.dir_page_ind_indir_x())
+		return self.ins("cmp" + self.dir_page_ind_indir_x())
 
 	def opD1(self):
-		self.ins("cmp" + self.dir_page_ind_indir_y())
+		return self.ins("cmp" + self.dir_page_ind_indir_y())
 
 	def opD7(self):
-		self.ins("cmp" + self.dir_page_indir_long_y())
+		return self.ins("cmp" + self.dir_page_indir_long_y())
 
 	def opC3(self):
-		self.ins("cmp" + self.stack_rel())
+		return self.ins("cmp" + self.stack_rel())
 
 	def opD3(self):
-		self.ins("cmp" + self.stack_rel_indir_y())
+		return self.ins("cmp" + self.stack_rel_indir_y())
 
 	# COP
 	def op02(self):
-		self.ins("cop" + self.stack_interrupt())
+		return self.ins("cop" + self.stack_interrupt())
 
 	# CPX
 	def opE0(self):
-		self.ins("cpx" + self.immediate_ind())
+		return self.ins("cpx" + self.immediate_ind())
 
 	def opEC(self):
-		self.ins("cpx" + self.abs())
+		return self.ins("cpx" + self.abs())
 
 	def opE4(self):
-		self.ins("cpx" + self.dir_page())
+		return self.ins("cpx" + self.dir_page())
 
 	# CPY
 	def opC0(self):
-		self.ins("cpy" + self.immediate_ind())
+		return self.ins("cpy" + self.immediate_ind())
 
 	def opCC(self):
-		self.ins("cpy" + self.abs())
+		return self.ins("cpy" + self.abs())
 
 	def opC4(self):
-		self.ins("cpy" + self.dir_page())
+		return self.ins("cpy" + self.dir_page())
 
 	# DEC
 	def op3A(self):
-		self.ins("dec A")
+		return self.ins("dec A")
 
 	def opCE(self):
-		self.ins("dec" + self.abs())
+		return self.ins("dec" + self.abs())
 
 	def opC6(self):
-		self.ins("dec" + self.dir_page())
+		return self.ins("dec" + self.dir_page())
 
 	def opDE(self):
-		self.ins("dec" + self.abs_ind_x())
+		return self.ins("dec" + self.abs_ind_x())
 
 	def opD6(self):
-		self.ins("dec" + self.dir_page_ind_x())
+		return self.ins("dec" + self.dir_page_ind_x())
 
 	# DEX
 	def opCA(self):
-		self.ins("dex")
+		return self.ins("dex")
 
 	# DEY
 	def op88(self):
-		self.ins("dey")
+		return self.ins("dey")
 
 	# EOR
 	def op49(self):
-		self.ins("eor" + self.immediate())
+		return self.ins("eor" + self.immediate())
 
 	def op4D(self):
-		self.ins("eor" + self.abs())
+		return self.ins("eor" + self.abs())
 
 	def op4F(self):
-		self.ins("eor" + self.abs_long())
+		return self.ins("eor" + self.abs_long())
 
 	def op45(self):
-		self.ins("eor" + self.dir_page())
+		return self.ins("eor" + self.dir_page())
 
 	def op52(self):
-		self.ins("eor" + self.dir_page_indir())
+		return self.ins("eor" + self.dir_page_indir())
 
 	def op47(self):
-		self.ins("eor" + self.dir_page_indir_long())
+		return self.ins("eor" + self.dir_page_indir_long())
 
 	def op5D(self):
-		self.ins("eor" + self.abs_ind_x())
+		return self.ins("eor" + self.abs_ind_x())
 
 	def op5F(self):
-		self.ins("eor" + self.abs_long_ind_x())
+		return self.ins("eor" + self.abs_long_ind_x())
 
 	def op59(self):
-		self.ins("eor" + self.abs_ind_y())
+		return self.ins("eor" + self.abs_ind_y())
 
 	def op55(self):
-		self.ins("eor" + self.dir_page_ind_x())
+		return self.ins("eor" + self.dir_page_ind_x())
 
 	def op41(self):
-		self.ins("eor" + self.dir_page_ind_indir_x())
+		return self.ins("eor" + self.dir_page_ind_indir_x())
 
 	def op51(self):
-		self.ins("eor" + self.dir_page_ind_indir_y())
+		return self.ins("eor" + self.dir_page_ind_indir_y())
 
 	def op57(self):
-		self.ins("eor" + self.dir_page_indir_long_y())
+		return self.ins("eor" + self.dir_page_indir_long_y())
 
 	def op43(self):
-		self.ins("eor" + self.stack_rel())
+		return self.ins("eor" + self.stack_rel())
 
 	def op53(self):
-		self.ins("eor" + self.stack_rel_indir_y())
+		return self.ins("eor" + self.stack_rel_indir_y())
 
 	# INC
 	def op1A(self):
-		self.ins("inc A")
+		return self.ins("inc A")
 
 	def opEE(self):
-		self.ins("inc" + self.abs())
+		return self.ins("inc" + self.abs())
 
 	def opE6(self):
-		self.ins("inc" + self.dir_page())
+		return self.ins("inc" + self.dir_page())
 
 	def opFE(self):
-		self.ins("inc" + self.abs_ind_x())
+		return self.ins("inc" + self.abs_ind_x())
 
 	def opF6(self):
-		self.ins("inc" + self.dir_page_ind_x())
+		return self.ins("inc" + self.dir_page_ind_x())
 
 	# INX
 	def opE8(self):
-		self.ins("inx")
+		return self.ins("inx")
 
 	# INY
 	def opC8(self):
-		self.ins("iny")
+		return self.ins("iny")
 
 	# JMP
 	def op4C(self):
-		self.ins("jmp" + self.abs())
+		self.set_label( (self.cart.address(self.pos ) & 0xFF0000) | self.pipe16() ) 
+		return self.ins("jmp" + self.abs())
 
 	def op6C(self):
-		self.ins("jmp" + self.abs_indir())
+		return self.ins("jmp" + self.abs_indir())
 
 	def op7C(self):
-		self.ins("jmp" + self.abs_ind_indir())
+		return self.ins("jmp" + self.abs_ind_indir())
 
 	def op5C(self):
-		self.ins("jmp" + self.abs_long())
+		self.set_label( self.pipe24() ) 
+		return self.ins("jmp" + self.abs_long())
 
 	def opDC(self):
-		self.ins("jmp" + self.abs_indir_long())
+		return self.ins("jmp" + self.abs_indir_long())
 
 	# JSR
 	def op22(self):
-		self.ins("jsr" + self.abs_long())
+		self.set_label( self.pipe24() ) 
+		return self.ins("jsr" + self.abs_long())
 
 	def op20(self):
-		self.ins("jsr" + self.abs())
+		self.set_label( (self.cart.address(self.pos) & 0xFF0000) | self.pipe16() ) 
+		return self.ins("jsr" + self.abs())
 
 	def opFC(self):
-		self.ins("jsr" + self.abs_ind_indir())
+		return self.ins("jsr" + self.abs_ind_indir())
 
 	# LDA
 	def opA9(self):
-		self.ins("lda" + self.immediate())
+		return self.ins("lda" + self.immediate())
 
 	def opAD(self):
-		self.ins("lda" + self.abs())
+		return self.ins("lda" + self.abs())
 
 	def opAF(self):
-		self.ins("lda" + self.abs_long())
+		return self.ins("lda" + self.abs_long())
 
 	def opA5(self):
-		self.ins("lda" + self.dir_page())
+		return self.ins("lda" + self.dir_page())
 
 	def opB2(self):
-		self.ins("lda" + self.dir_page_indir())
+		return self.ins("lda" + self.dir_page_indir())
 
 	def opA7(self):
-		self.ins("lda" + self.dir_page_indir_long())
+		return self.ins("lda" + self.dir_page_indir_long())
 
 	def opBD(self):
-		self.ins("lda" + self.abs_ind_x())
+		return self.ins("lda" + self.abs_ind_x())
 
 	def opBF(self):
-		self.ins("lda" + self.abs_long_ind_x())
+		return self.ins("lda" + self.abs_long_ind_x())
 
 	def opB9(self):
-		self.ins("lda" + self.abs_ind_y())
+		return self.ins("lda" + self.abs_ind_y())
 
 	def opB5(self):
-		self.ins("lda" + self.dir_page_ind_x())
+		return self.ins("lda" + self.dir_page_ind_x())
 
 	def opA1(self):
-		self.ins("lda" + self.dir_page_ind_indir_x())
+		return self.ins("lda" + self.dir_page_ind_indir_x())
 
 	def opB1(self):
-		self.ins("lda" + self.dir_page_ind_indir_y())
+		return self.ins("lda" + self.dir_page_ind_indir_y())
 
 	def opB7(self):
-		self.ins("lda" + self.dir_page_indir_long_y())
+		return self.ins("lda" + self.dir_page_indir_long_y())
 
 	def opA3(self):
-		self.ins("lda" + self.stack_rel())
+		return self.ins("lda" + self.stack_rel())
 
 	def opB3(self):
-		self.ins("lda" + self.stack_rel_indir_y())
+		return self.ins("lda" + self.stack_rel_indir_y())
 
 	# LDX
 	def opA2(self):
-		self.ins("ldx" + self.immediate_ind())
+		return self.ins("ldx" + self.immediate_ind())
 
 	def opAE(self):
-		self.ins("ldx" + self.abs())
+		return self.ins("ldx" + self.abs())
 
 	def opA6(self):
-		self.ins("ldx" + self.dir_page())
+		return self.ins("ldx" + self.dir_page())
 
 	def opBE(self):
-		self.ins("ldx" + self.abs_ind_y())
+		return self.ins("ldx" + self.abs_ind_y())
 
 	def opB6(self):
-		self.ins("ldx" + self.dir_page_ind_y())
+		return self.ins("ldx" + self.dir_page_ind_y())
 
 	# LDY
 	def opA0(self):
-		self.ins("ldy" + self.immediate_ind())
+		return self.ins("ldy" + self.immediate_ind())
 
 	def opAC(self):
-		self.ins("ldy" + self.abs())
+		return self.ins("ldy" + self.abs())
 
 	def opA4(self):
-		self.ins("ldy" + self.dir_page())
+		return self.ins("ldy" + self.dir_page())
 
 	def opBC(self):
-		self.ins("ldy" + self.abs_ind_x())
+		return self.ins("ldy" + self.abs_ind_x())
 
 	def opB4(self):
-		self.ins("ldy" + self.dir_page_ind_x())
+		return self.ins("ldy" + self.dir_page_ind_x())
 
 	# LSR
 	def op4A(self):
-		self.ins("lsr A")
+		return self.ins("lsr A")
 
 	def op4E(self):
-		self.ins("lsr" + self.abs())
+		return self.ins("lsr" + self.abs())
 
 	def op46(self):
-		self.ins("lsr" + self.dir_page())
+		return self.ins("lsr" + self.dir_page())
 
 	def op5E(self):
-		self.ins("lsr" + self.abs_ind_x())
+		return self.ins("lsr" + self.abs_ind_x())
 
 	def op56(self):
-		self.ins("lsr" + self.dir_page_ind_x())
+		return self.ins("lsr" + self.dir_page_ind_x())
 
 	# MVN
 	def op54(self):
-		self.ins("mvn" + self.block_move())
+		return self.ins("mvn" + self.block_move())
 
 	# MVP
 	def op44(self):
-		self.ins("mvp" + self.block_move())
+		return self.ins("mvp" + self.block_move())
 
 	# NOP
 	def opEA(self):
-		self.ins("nop")
+		return self.ins("nop")
 
 	# ORA
 	def op09(self):
-		self.ins("ora" + self.immediate())
+		return self.ins("ora" + self.immediate())
 
 	def op0D(self):
-		self.ins("ora" + self.abs())
+		return self.ins("ora" + self.abs())
 
 	def op0F(self):
-		self.ins("ora" + self.abs_long())
+		return self.ins("ora" + self.abs_long())
 
 	def op05(self):
-		self.ins("ora" + self.dir_page())
+		return self.ins("ora" + self.dir_page())
 
 	def op12(self):
-		self.ins("ora" + self.dir_page_indir())
+		return self.ins("ora" + self.dir_page_indir())
 
 	def op07(self):
-		self.ins("ora" + self.dir_page_indir_long())
+		return self.ins("ora" + self.dir_page_indir_long())
 
 	def op1D(self):
-		self.ins("ora" + self.abs_ind_x())
+		return self.ins("ora" + self.abs_ind_x())
 
 	def op1F(self):
-		self.ins("ora" + self.abs_long_ind_x())
+		return self.ins("ora" + self.abs_long_ind_x())
 
 	def op19(self):
-		self.ins("ora" + self.abs_ind_y())
+		return self.ins("ora" + self.abs_ind_y())
 
 	def op15(self):
-		self.ins("ora" + self.dir_page_ind_x())
+		return self.ins("ora" + self.dir_page_ind_x())
 
 	def op01(self):
-		self.ins("ora" + self.dir_page_ind_indir_x())
+		return self.ins("ora" + self.dir_page_ind_indir_x())
 
 	def op11(self):
-		self.ins("ora" + self.dir_page_ind_indir_y())
+		return self.ins("ora" + self.dir_page_ind_indir_y())
 
 	def op17(self):
-		self.ins("ora" + self.dir_page_indir_long_y())
+		return self.ins("ora" + self.dir_page_indir_long_y())
 
 	def op03(self):
-		self.ins("ora" + self.stack_rel())
+		return self.ins("ora" + self.stack_rel())
 
 	def op13(self):
-		self.ins("ora" + self.stack_rel_indir_y())
+		return self.ins("ora" + self.stack_rel_indir_y())
 
  	# PEA
 	def opF4(self):
-		self.ins("pea" + self.abs())
+		return self.ins("pea" + self.abs())
  
  	# PEI
 	def opD4(self):
-		self.ins("pei" + self.dir_page_indir())
+		return self.ins("pei" + self.dir_page_indir())
  
  	# PER
 	def op62(self):
-		self.ins("per" + self.pc_rel_long())
+		return self.ins("per" + self.pc_rel_long())
  
  	# PHA
 	def op48(self):
-		self.ins("pha")
+		return self.ins("pha")
  
  	# PHP
 	def op08(self):
-		self.ins("php")
+		return self.ins("php")
  
  	# PHX
 	def opDA(self):
-		self.ins("phx")
+		return self.ins("phx")
  
  	# PHY
 	def op5A(self):
-		self.ins("phy")
+		return self.ins("phy")
  
  	# PLA
 	def op68(self):
-		self.ins("pla")
+		return self.ins("pla")
  
  	# PLP
 	def op28(self):
-		self.ins("plp")
+		return self.ins("plp")
  
  	# PLX
 	def opFA(self):
-		self.ins("plx")
+		return self.ins("plx")
  
  	# PLY
 	def op7A(self):
-		self.ins("ply")
+		return self.ins("ply")
  
  	# PHB
 	def op8B(self):
-		self.ins("phb")
+		return self.ins("phb")
  
  	# PHD
 	def op0B(self):
-		self.ins("phd")
+		return self.ins("phd")
  
  	# PHK
 	def op4B(self):
-		self.ins("phk")
+		return self.ins("phk")
  
  	# PLB
 	def opAB(self):
-		self.ins("plb")
+		return self.ins("plb")
  
  	# PLD
 	def op2B(self):
-		self.ins("pld")
+		return self.ins("pld")
 
 	# REP
 	def opC2(self):
@@ -691,7 +749,7 @@ class Disassembler:
 		if val & 0x10:
 			pre = pre + "\n" if pre else ""
 			pre = pre + ".INDEX16"
-		self.ins("rep #$%02X" % self.pipe8(), pre )
+		return self.ins("rep #$%02X" % self.pipe8(), pre )
 
 	# SEP
 	def opE2(self):
@@ -703,255 +761,255 @@ class Disassembler:
 		if val & 0x10:
 			pre = pre + "\n" if pre else ""
 			pre = pre + ".INDEX8"
-		self.ins("sep #$%02X" % self.pipe8(), pre )
+		return self.ins("sep #$%02X" % self.pipe8(), pre )
 
 	# ROL
 	def op2A(self):
-		self.ins("rol A")
+		return self.ins("rol A")
 
 	def op2E(self):
-		self.ins("rol" + self.abs())
+		return self.ins("rol" + self.abs())
 
 	def op26(self):
-		self.ins("rol" + self.dir_page())
+		return self.ins("rol" + self.dir_page())
 
 	def op3E(self):
-		self.ins("rol" + self.abs_ind_x())
+		return self.ins("rol" + self.abs_ind_x())
 
 	def op36(self):
-		self.ins("rol" + self.dir_page_ind_x())
+		return self.ins("rol" + self.dir_page_ind_x())
 
 	# ROR
 	def op6A(self):
-		self.ins("ror A")
+		return self.ins("ror A")
 
 	def op6E(self):
-		self.ins("ror" + self.abs())
+		return self.ins("ror" + self.abs())
 
 	def op66(self):
-		self.ins("ror" + self.dir_page())
+		return self.ins("ror" + self.dir_page())
 
 	def op7E(self):
-		self.ins("ror" + self.abs_ind_x())
+		return self.ins("ror" + self.abs_ind_x())
 
 	def op76(self):
-		self.ins("ror" + self.dir_page_ind_x())
+		return self.ins("ror" + self.dir_page_ind_x())
 
 	# RTI
 	def op40(self):
-		self.ins("rti")
+		return self.ins("rti")
 
 	# RTL
 	def op6B(self):
-		self.ins("rtl")
+		return self.ins("rtl")
 
 	# RTS
 	def op60(self):
-		self.ins("rts")
+		return self.ins("rts")
 
 	# SBC
 	def opE9(self):
-		self.ins("sbc" + self.immediate())
+		return self.ins("sbc" + self.immediate())
 
 	def opED(self):
-		self.ins("sbc" + self.abs())
+		return self.ins("sbc" + self.abs())
 
 	def opEF(self):
-		self.ins("sbc" + self.abs_long())
+		return self.ins("sbc" + self.abs_long())
 
 	def opE5(self):
-		self.ins("sbc" + self.dir_page())
+		return self.ins("sbc" + self.dir_page())
 
 	def opF2(self):
-		self.ins("sbc" + self.dir_page_indir())
+		return self.ins("sbc" + self.dir_page_indir())
 
 	def opE7(self):
-		self.ins("sbc" + self.dir_page_indir_long())
+		return self.ins("sbc" + self.dir_page_indir_long())
 
 	def opFD(self):
-		self.ins("sbc" + self.abs_ind_x())
+		return self.ins("sbc" + self.abs_ind_x())
 
 	def opFF(self):
-		self.ins("sbc" + self.abs_long_ind_x())
+		return self.ins("sbc" + self.abs_long_ind_x())
 
 	def opF9(self):
-		self.ins("sbc" + self.abs_ind_y())
+		return self.ins("sbc" + self.abs_ind_y())
 
 	def opF5(self):
-		self.ins("sbc" + self.dir_page_ind_x())
+		return self.ins("sbc" + self.dir_page_ind_x())
 
 	def opE1(self):
-		self.ins("sbc" + self.dir_page_ind_indir_x())
+		return self.ins("sbc" + self.dir_page_ind_indir_x())
 
 	def opF1(self):
-		self.ins("sbc" + self.dir_page_ind_indir_y())
+		return self.ins("sbc" + self.dir_page_ind_indir_y())
 
 	def opF7(self):
-		self.ins("sbc" + self.dir_page_indir_long_y())
+		return self.ins("sbc" + self.dir_page_indir_long_y())
 
 	def opE3(self):
-		self.ins("sbc" + self.stack_rel())
+		return self.ins("sbc" + self.stack_rel())
 
 	def opF3(self):
-		self.ins("sbc" + self.stack_rel_indir_y())
+		return self.ins("sbc" + self.stack_rel_indir_y())
 
 	# STA
 	def op8D(self):
-		self.ins("sta" + self.abs())
+		return self.ins("sta" + self.abs())
 
 	def op8F(self):
-		self.ins("sta" + self.abs_long())
+		return self.ins("sta" + self.abs_long())
 
 	def op85(self):
-		self.ins("sta" + self.dir_page())
+		return self.ins("sta" + self.dir_page())
 
 	def op92(self):
-		self.ins("sta" + self.dir_page_indir())
+		return self.ins("sta" + self.dir_page_indir())
 
 	def op87(self):
-		self.ins("sta" + self.dir_page_indir_long())
+		return self.ins("sta" + self.dir_page_indir_long())
 
 	def op9D(self):
-		self.ins("sta" + self.abs_ind_x())
+		return self.ins("sta" + self.abs_ind_x())
 
 	def op9F(self):
-		self.ins("sta" + self.abs_long_ind_x())
+		return self.ins("sta" + self.abs_long_ind_x())
 
 	def op99(self):
-		self.ins("sta" + self.abs_ind_y())
+		return self.ins("sta" + self.abs_ind_y())
 
 	def op95(self):
-		self.ins("sta" + self.dir_page_ind_x())
+		return self.ins("sta" + self.dir_page_ind_x())
 
 	def op81(self):
-		self.ins("sta" + self.dir_page_ind_indir_x())
+		return self.ins("sta" + self.dir_page_ind_indir_x())
 
 	def op91(self):
-		self.ins("sta" + self.dir_page_ind_indir_y())
+		return self.ins("sta" + self.dir_page_ind_indir_y())
 
 	def op97(self):
-		self.ins("sta" + self.dir_page_indir_long_y())
+		return self.ins("sta" + self.dir_page_indir_long_y())
 
 	def op83(self):
-		self.ins("sta" + self.stack_rel())
+		return self.ins("sta" + self.stack_rel())
 
 	def op93(self):
-		self.ins("sta" + self.stack_rel_indir_y())
+		return self.ins("sta" + self.stack_rel_indir_y())
 
 	# STP
 	def opDB(self):
-		self.ins("stp")
+		return self.ins("stp")
 
 	# STX
 	def op8E(self):
-		self.ins("stx" + self.abs())
+		return self.ins("stx" + self.abs())
 
 	def op86(self):
-		self.ins("stx" + self.dir_page())
+		return self.ins("stx" + self.dir_page())
 
 	def op96(self):
-		self.ins("stx" + self.dir_page_ind_y())
+		return self.ins("stx" + self.dir_page_ind_y())
 
 	# STY
 	def op8C(self):
-		self.ins("sty" + self.abs())
+		return self.ins("sty" + self.abs())
 
 	def op84(self):
-		self.ins("sty" + self.dir_page())
+		return self.ins("sty" + self.dir_page())
 
 	def op94(self):
-		self.ins("sty" + self.dir_page_ind_x())
+		return self.ins("sty" + self.dir_page_ind_x())
 
 	# STZ
 	def op9C(self):
-		self.ins("stz" + self.abs())
+		return self.ins("stz" + self.abs())
 
 	def op64(self):
-		self.ins("stz" + self.dir_page())
+		return self.ins("stz" + self.dir_page())
 
 	def op9E(self):
-		self.ins("stz" + self.abs_ind_x())
+		return self.ins("stz" + self.abs_ind_x())
 
 	def op74(self):
-		self.ins("stz" + self.dir_page_ind_x())
+		return self.ins("stz" + self.dir_page_ind_x())
 
  	# TAX
 	def opAA(self):
-		self.ins("tax")
+		return self.ins("tax")
  
  	# TAY
 	def opA8(self):
-		self.ins("tay")
+		return self.ins("tay")
  
  	# TXA
 	def op8A(self):
-		self.ins("txa")
+		return self.ins("txa")
  
  	# TYA
 	def op98(self):
-		self.ins("tya")
+		return self.ins("tya")
  
  	# TSX
 	def opBA(self):
-		self.ins("tsx")
+		return self.ins("tsx")
  
  	# TXS
 	def op9A(self):
-		self.ins("txs")
+		return self.ins("txs")
  
  	# TXY
 	def op9B(self):
-		self.ins("txy")
+		return self.ins("txy")
  
  	# TYX
 	def opBB(self):
-		self.ins("tyx")
+		return self.ins("tyx")
  
  	# TCD
 	def op5B(self):
-		self.ins("tcd")
+		return self.ins("tcd")
  
  	# TDC
 	def op7B(self):
-		self.ins("tdc")
+		return self.ins("tdc")
 
  	# TCS
 	def op1B(self):
-		self.ins("tcs")
+		return self.ins("tcs")
  
  	# TSC
 	def op3B(self):
-		self.ins("tsc")
+		return self.ins("tsc")
  
  	# TRB
 	def op1C(self):
-		self.ins("trb" + self.abs())
+		return self.ins("trb" + self.abs())
 
 	def op14(self):
-		self.ins("trb" + self.dir_page())
+		return self.ins("trb" + self.dir_page())
  
  	# TSB
 	def op0C(self):
-		self.ins("tsb" + self.abs())
+		return self.ins("tsb" + self.abs())
 
 	def op04(self):
-		self.ins("tsb" + self.dir_page())
+		return self.ins("tsb" + self.dir_page())
  
  	# WAI
 	def opCB(self):
-		self.ins("wai")
+		return self.ins("wai")
  
  	# WDM
 	def op42(self):
-		self.ins("wdm" + " $%02X" % self.pipe8())
+		return self.ins("wdm" + " $%02X" % self.pipe8())
  
  	# XBA
 	def opEB(self):
-		self.ins("xba")
+		return self.ins("xba")
  
  	# XCE
 	def opFB(self):
-		self.ins("xce")
+		return self.ins("xce")
 
 	# Address modes
 
@@ -1031,13 +1089,17 @@ class Disassembler:
 		val = self.pipe8()
 		if val > 127:
 			val = val - 256
+
+		self.set_label( self.cart.address(self.pos) + val + 2 )
+
 		return " $%04X" % ((self.cart.address(self.pos) + val + 2) & 0xFFFF)
 
 	def pc_rel_long(self):
 		val = self.pipe16()
 		if val > 32767:
 			val = val - 65536
-		addr = (self.cart.address(self.pos) + 3 + val) & 0xFFFF
+		self.set_label( self.cart.address(self.pos) + val + 3 )
+		addr = (self.cart.address(self.pos) + val + 3) & 0xFFFF
 		return " $%04lX" % addr
 
 	def pipe8(self):

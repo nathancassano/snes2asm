@@ -1,5 +1,4 @@
-
-import pdb
+import struct
 
 class Cartridge:
 
@@ -8,16 +7,27 @@ class Cartridge:
 		self.data = []
 		self.hirom = False
 		self.romsize = None
+		self.fastrom = False
 		self.base_address = 0
 
+    # Data indexing and slicing
 	def __getitem__(self, i):
-		return ord(self.data[i])
+		if isinstance(i, slice):
+			return [ ord(self.data[ir]) for ir in range(i.start, i.stop) ]
+		else:
+			return ord(self.data[i])
 
+	# Open rom file
 	def open(self,file_path):
 		file = open(file_path,"rb")
-		self.data = file.read()
+		data = file.read()
 		file.close()
+		self.set(data)
 
+    # Assign cart data
+	def set(self, data):
+
+		self.data = data
 		size = len(self.data)
 
 		# Trim extra data
@@ -33,9 +43,9 @@ class Cartridge:
 			print("This file looks the wrong size to be a legitimate rom image.")
 			exit(1)
 
-		if self.options.hirom:
+		if self.options.get('hirom'):
 			self.hirom = True
-		elif self.options.lorom:
+		elif self.options.get('lorom'):
 			self.hirom = False
 		else:
 			hi_score = self.score_hirom()
@@ -43,24 +53,46 @@ class Cartridge:
 
 			self.hirom = hi_score > lo_score
 
-		if self.options.shadow:
-			shadow = True
-		elif self.options.noshadow:
-			shadow = False
+		if self.options.get('fastrom'):
+			self.fastrom = True
+		elif self.options.get('slowrom'):
+			self.fastrom = False
 		else:
 			# Auto-detect
-			shadow = (self[0xFFD5 if self.hirom else 0x7FD5] & 0x30) != 0
+			self.fastrom = (self[0xFFD5 if self.hirom else 0x7FD5] & 0x30) != 0
 
-		if shadow:
-			self.base_address = 0xC00000 if self.hirom else 0x808000
-		else:
-			self.base_address = 0x400000 if self.hirom else 0x008000
+		self.base_address = 0x400000 if self.hirom else 0x008000
 
+		header_offset = 0x07fb0 if not self.hirom else 0x0ffb0
+
+		self.parse_header(header_offset)
+
+	def parse_header(self, offset):
+		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.ram_size, self.dest_code, self.fixed_val, self.rom_mask, self.comp_check, self.check_sum  ) = struct.unpack("H4s7s3b21s7b2H", self.data[offset:offset+48])
+
+		(self.nvec_unused, self.nvec_cop, self.nvec_brk, self.nvec_abort, self.nvec_nmi, self.nvec_reset, self.nvec_irq, self.evec_unused, self.evec_cop, self.evec_unused2, self.evec_abort, self.evec_nmi, self.evec_reset, self.evec_irq) = struct.unpack("I6HI6H", self.data[offset+48:offset+80])
+
+    # Translate rom position to address
 	def address(self, i):
 		if self.hirom:
 			return self.base_address | i
 		else:
 			return (((i & 0xFF8000) << 1) + (i & 0x7FFF)) + self.base_address
+
+	def address_to_index(self, addr):
+		if self.hirom:
+			pass
+		else:
+			pass
+
+	def bank_from_label(self, label):
+		return (label - self.base_address) / self.bank_size()
+
+	def bank_size(self):
+		return 0x10000 if self.hirom else 0x8000
+
+	def bank_count(self):
+		return len(self.data) / self.bank_size()
 
 	def score_hirom(self):
 		score = 0
