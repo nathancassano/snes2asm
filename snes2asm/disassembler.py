@@ -33,7 +33,6 @@ class Disassembler:
 		self.banks = [None for a in range(0,self.cart.bank_count())]
 
 	def run(self):
-
 		if self.options.banks:
 			for b in self.options.banks:
 				if b < self.cart.bank_count():
@@ -52,7 +51,7 @@ class Disassembler:
 
 		while True:
 			remaining = False 
-			for label in self.labels:
+			for label in self.labels.copy():
 				bank = self.cart.bank_from_label(label)
 				if self.banks[bank] == None:
 					remaining = True
@@ -68,7 +67,7 @@ class Disassembler:
 	
 	def decode(self, start, end):
 
-		code = OrderedDict()
+		codes = OrderedDict()
 
 		self.pos = start
 		while self.pos < end:
@@ -77,19 +76,19 @@ class Disassembler:
 
 			if (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
 				print(";Opcode %02X overrunning bank boundry at %X. Skipping." % (op, self.pos))
-				return self.ins(".byte $%02X" % op)
+				codes[self.cart.address(self.pos)] = self.ins(".byte $%02X" % op)
 				self.pos = self.pos + 1
 				continue
 				
 			func = getattr(self, 'op%02X' % op)
 			if not func:
 				print(";Unhandled opcode: %02X at %X" % (op, self.pos))
-				return self.ins(".byte $%02X" % op)
+				codes[self.cart.address(self.pos)] = self.ins(".byte $%02X" % op)
 				self.pos = self.pos + 1
 				continue
-			code[self.cart.address(self.pos)] = func()
+			codes[self.cart.address(self.pos)] = func()
 			self.pos = self.pos + op_size
-		return code
+		return codes
 
 	def fill_data_banks(self):
 		for i in range(0, len(self.banks)):
@@ -100,12 +99,21 @@ class Disassembler:
 		print "make_data_bank = " + str(bank)
 		code = OrderedDict()
 		start = bank * self.cart.bank_size()
-		end = start + bank * self.cart.bank_size()
+		end = start + self.cart.bank_size()
 
 		for y in range(start, end, 16):
 			line = '.byte ' + ', '.join(("0x%02X" % x) for x in self.cart[y : y+16])
 			code[self.cart.address(y)] = self.ins(line)
 
+		return code
+
+	def bank_code(self, bank):
+		code = ""
+		items = self.banks[bank].items()
+		if items == None:
+			return code
+		for addr, instr in items:
+			code = code + str(instr) + "\n"
 		return code
 
 	def acc16(self):
@@ -115,7 +123,6 @@ class Disassembler:
 		return self.flags & 0x10 == 0
 
 	def set_label(self, address):
-		print("set_label = %06X" % address)
 		self.labels.add(address)
 
 	# Append instruction

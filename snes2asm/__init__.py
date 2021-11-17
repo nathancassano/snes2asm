@@ -30,11 +30,11 @@ def main(argv=None):
 		parser.print_help()
 
 def exec_asm(options):
-	cart = Cartridge(options)
+	cart = Cartridge(options.__dict__)
 	cart.open(options.input)
 
 	disasm = Disassembler(cart, options)
 	disasm.run()
 
-	project = ProjectMaker(disasm)
+	project = ProjectMaker(cart, disasm)
 	project.output(options.output_dir)
