@@ -270,15 +270,13 @@ class Disassembler:
 			op_size = self.opSize(op)
 
 			if (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
-				print(";Opcode %02X overrunning bank boundry at %X. Skipping." % (op, self.pos))
-				self.code[self.pos] = self.ins(".db $%02X" % op)
+				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode %02X overrunning bank boundry at %06X. Skipping." % (op, self.pos))
 				self.pos = self.pos + 1
 				continue
 				
 			func = getattr(self, 'op%02X' % op)
 			if not func:
-				print(";Unhandled opcode: %02X at %X" % (op, self.pos))
-				self.code[self.pos] = self.ins(".db $%02X" % op)
+				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Unhandled opcode: %02X at %06X" % (op, self.pos))
 				self.pos = self.pos + 1
 				continue
 			self.code[self.pos] = func()
