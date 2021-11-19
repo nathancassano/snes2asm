@@ -30,13 +30,13 @@ class Disassembler:
 		self.pos = 0
 		self.flags = 0
 		self.labels = set()
-		self.banks = [None for a in range(0,self.cart.bank_count())]
+		self.code = OrderedDict()
 
 	def run(self):
 		if self.options.banks:
 			for b in self.options.banks:
 				if b < self.cart.bank_count():
-					self.banks[b] = self.decode_bank(b)
+					self.decode_bank(b)
 				else:
 					print("Invalid bank %d" % b)
 		else:
@@ -47,7 +47,7 @@ class Disassembler:
 	def auto_run(self):
 
 		# Decode first bank
-		self.banks[0] = self.decode_bank(0)	
+		self.decode_bank(0)	
 
 		while True:
 			remaining = False 
@@ -55,7 +55,7 @@ class Disassembler:
 				bank = self.cart.bank_from_label(label)
 				if self.banks[bank] == None:
 					remaining = True
-					self.banks[bank] = self.decode_bank(bank)
+					self.decode_bank(bank)
 
 			if not remaining:
 				break
@@ -63,11 +63,9 @@ class Disassembler:
 	def decode_bank(self, bank):
 		start = self.cart.bank_size() * bank
 		end = start + self.cart.bank_size()
-		return self.decode(start, end)
+		self.decode(start, end)
 	
 	def decode(self, start, end):
-
-		codes = OrderedDict()
 
 		self.pos = start
 		while self.pos < end:
@@ -76,43 +74,38 @@ class Disassembler:
 
 			if (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
 				print(";Opcode %02X overrunning bank boundry at %X. Skipping." % (op, self.pos))
-				codes[self.cart.address(self.pos)] = self.ins(".byte $%02X" % op)
+				self.code[self.pos] = self.ins(".db $%02X" % op)
 				self.pos = self.pos + 1
 				continue
 				
 			func = getattr(self, 'op%02X' % op)
 			if not func:
 				print(";Unhandled opcode: %02X at %X" % (op, self.pos))
-				codes[self.cart.address(self.pos)] = self.ins(".byte $%02X" % op)
+				self.code[self.pos] = self.ins(".db $%02X" % op)
 				self.pos = self.pos + 1
 				continue
-			codes[self.cart.address(self.pos)] = func()
+			self.code[self.pos] = func()
 			self.pos = self.pos + op_size
-		return codes
 
 	def fill_data_banks(self):
-		for i in range(0, len(self.banks)):
-			if self.banks[i] == None:
-				self.banks[i] = self.make_data_bank(i)
+		for bank in range(0, self.cart.bank_count()):
+			addr = bank * self.cart.bank_size()
+			if self.code.get(addr) == None:
+				self.make_data_bank(bank)
 
 	def make_data_bank(self, bank):
-		print "make_data_bank = " + str(bank)
-		code = OrderedDict()
 		start = bank * self.cart.bank_size()
 		end = start + self.cart.bank_size()
 
 		for y in range(start, end, 16):
-			line = '.byte ' + ', '.join(("0x%02X" % x) for x in self.cart[y : y+16])
-			code[self.cart.address(y)] = self.ins(line)
+			line = '.db ' + ', '.join(("$%02X" % x) for x in self.cart[y : y+16])
+			self.code[y] = self.ins(line)
 
-		return code
-
-	def bank_code(self, bank):
+	def assembly(self):
 		code = ""
-		items = self.banks[bank].items()
-		if items == None:
-			return code
-		for addr, instr in items:
+		for addr, instr in self.code.items():
+			if addr in self.labels:
+				code = code + "L%06X:\n" % addr
 			code = code + str(instr) + "\n"
 		return code
 
@@ -502,8 +495,9 @@ class Disassembler:
 
 	# JMP
 	def op4C(self):
-		self.set_label( (self.cart.address(self.pos ) & 0xFF0000) | self.pipe16() ) 
-		return self.ins("jmp" + self.abs())
+		address = (self.pos + 0xFF0000) | self.pipe16()
+		self.set_label( address ) 
+		return self.ins("jmp L%06X" % address)
 
 	def op6C(self):
 		return self.ins("jmp" + self.abs_indir())
@@ -512,7 +506,8 @@ class Disassembler:
 		return self.ins("jmp" + self.abs_ind_indir())
 
 	def op5C(self):
-		self.set_label( self.pipe24() ) 
+		#TODO
+		#self.set_label( self.pipe24() ) 
 		return self.ins("jmp" + self.abs_long())
 
 	def opDC(self):
@@ -520,11 +515,12 @@ class Disassembler:
 
 	# JSR
 	def op22(self):
-		self.set_label( self.pipe24() ) 
+		#TODO
+		#self.set_label( self.pipe24() ) 
 		return self.ins("jsr" + self.abs_long())
 
 	def op20(self):
-		self.set_label( (self.cart.address(self.pos) & 0xFF0000) | self.pipe16() ) 
+		self.set_label( (self.pos & 0xFF0000) | self.pipe16() ) 
 		return self.ins("jsr" + self.abs())
 
 	def opFC(self):
@@ -752,10 +748,10 @@ class Disassembler:
 		self.flags = self.flags & (~val)
 		pre = None
 		if val & 0x20:
-			pre = ".ACCUM16"
+			pre = ".ACCU 16"
 		if val & 0x10:
 			pre = pre + "\n" if pre else ""
-			pre = pre + ".INDEX16"
+			pre = pre + ".INDEX 16"
 		return self.ins("rep #$%02X" % self.pipe8(), pre )
 
 	# SEP
@@ -764,10 +760,10 @@ class Disassembler:
 		self.flags = self.flags | val
 		pre = None
 		if val & 0x20:
-			pre = ".ACCUM8"
+			pre = ".ACCU 8"
 		if val & 0x10:
 			pre = pre + "\n" if pre else ""
-			pre = pre + ".INDEX8"
+			pre = pre + ".INDEX 8"
 		return self.ins("sep #$%02X" % self.pipe8(), pre )
 
 	# ROL
@@ -1096,18 +1092,17 @@ class Disassembler:
 		val = self.pipe8()
 		if val > 127:
 			val = val - 256
-
-		self.set_label( self.cart.address(self.pos) + val + 2 )
-
-		return " $%04X" % ((self.cart.address(self.pos) + val + 2) & 0xFFFF)
+		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
+		self.set_label( address )
+		return " L%06X" % address
 
 	def pc_rel_long(self):
 		val = self.pipe16()
 		if val > 32767:
 			val = val - 65536
-		self.set_label( self.cart.address(self.pos) + val + 3 )
-		addr = (self.cart.address(self.pos) + val + 3) & 0xFFFF
-		return " $%04lX" % addr
+		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
+		self.set_label( address )
+		return " L%06X" % address
 
 	def pipe8(self):
 		return self.cart[self.pos+1]
@@ -1129,5 +1124,4 @@ class Instruction:
 		self.preamble = preamble
 
 	def __str__(self):
-		return self.code
-		#return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "  " + self.comment if self.comment else "")
+		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "  " + self.comment if self.comment else "")

@@ -15,14 +15,13 @@ class ProjectMaker:
 		self.create_header(dir)
 		self.copy_files(dir)
 
-		for i in range(0,len(self.disasm.banks)):
-			filename = "%s/bank%d.asm" % (dir, i)
-			f = open(filename, 'w')
-			f.write(self.disasm.bank_code(i))
-			f.close()
+		filename = "%s/game.asm" % dir
+		f = open(filename, 'w')
+		f.write(self.disasm.assembly())
+		f.close()
 
 	def copy_files(self, dir):
-		files = ['Makefile','clean.bat','compile.bat']
+		files = ['Makefile','clean.bat','compile.bat', 'snes.asm', 'main.s']
 		for f in files:
 			shutil.copyfile("snes2asm/template/" + f, "%s/%s" % (dir, f) )
 

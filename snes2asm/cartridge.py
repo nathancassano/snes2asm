@@ -62,14 +62,14 @@ class Cartridge:
 
 		self.base_address = 0x400000 if self.hirom else 0x008000
 
-		header_offset = 0x07fb0 if not self.hirom else 0x0ffb0
+		self.header_offset = 0x07fb0 if not self.hirom else 0x0ffb0
 
-		self.parse_header(header_offset)
+		self.parse_header()
 
-	def parse_header(self, offset):
-		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.sram_size, self.country, self.license_code, self.rom_mask, self.comp_check, self.check_sum  ) = struct.unpack("H4s7s3b21s7b2H", self.data[offset:offset+48])
+	def parse_header(self):
+		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.sram_size, self.country, self.license_code, self.rom_mask, self.comp_check, self.check_sum) = struct.unpack("H4s7s3b21s7b2H", self.data[self.header_offset:self.header_offset+48])
 
-		(self.nvec_unused, self.nvec_cop, self.nvec_brk, self.nvec_abort, self.nvec_nmi, self.nvec_reset, self.nvec_irq, self.evec_unused, self.evec_cop, self.evec_unused2, self.evec_abort, self.evec_nmi, self.evec_reset, self.evec_irq) = struct.unpack("I6HI6H", self.data[offset+48:offset+80])
+		(self.nvec_unused, self.nvec_cop, self.nvec_brk, self.nvec_abort, self.nvec_nmi, self.nvec_reset, self.nvec_irq, self.evec_unused, self.evec_cop, self.evec_unused2, self.evec_abort, self.evec_nmi, self.evec_reset, self.evec_irq) = struct.unpack("I6HI6H", self.data[self.header_offset+48:self.header_offset+80])
 
     # Translate rom position to address
 	def address(self, i):
