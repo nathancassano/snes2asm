@@ -22,6 +22,203 @@ InstructionSizes = [
 	2, 2, 2, 2, 3, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xF 
 ]
 
+# Static Regions of memory 
+# Format: Address: ["Symbol", "Comment"]
+StaticAddresses = {
+	0x2100: ["INIDSP", "Screen Display"],
+	0x2101: ["OBJSEL", "Object Size and Chr Address"],
+	0x2102: ["OAMADDL", "OAM Address Low Byte"],
+	0x2103: ["OAMADDH", "OAM Address High Byte"],
+	0x2104: ["OAMDATA", "Data for OAM write"],
+	0x2105: ["BGMODE", "BG Mode and Character Size"],
+	0x2106: ["MOSAIC", "Screen Pixelation"],
+	0x2107: ["BG1SC", "BG1 Tilemap Address and Size"],
+	0x2108: ["BG2SC", "BG2 Tilemap Address and Size"],
+	0x2109: ["BG3SC", "BG3 Tilemap Address and Size"],
+	0x210a: ["BG4SC", "BG4 Tilemap Address and Size"],
+	0x210b: ["BG12NBA", "BG1&2 Tilemap Character Address"],
+	0x210c: ["BG34NBA", "BG3&4 Tilemap Character Address"],
+	0x210d: ["BG1HOFS", "BG1 Horizontal Scroll / Mode 7 BG Horizontal Scroll"],
+	0x210e: ["BG1VOFS", "BG1 Vertical Scroll / Mode 7 BG Vertical Scroll"],
+	0x210f: ["BG2HOFS", "BG2 Horizontal Scroll"],
+	0x2110: ["BG2VOFS", "BG2 Vertical Scroll"],
+	0x2111: ["BG3HOFS", "BG3 Horizontal Scroll"],
+	0x2112: ["BG3VOFS", "BG3 Vertical Scroll"],
+	0x2113: ["BG4HOFS", "BG4 Horizontal Scroll"],
+	0x2114: ["BG4VOFS", "BG4 Vertical Scroll"],
+	0x2115: ["VMAIN", "Video Port Control"],
+	0x2116: ["VMADDL", "VRAM Address Low Byte"],
+	0x2117: ["VMADDH", "VRAM Address High Byte"],
+	0x2118: ["VMDATAL", "VRAM Data Write Low Byte"],
+	0x2119: ["VMDATAH", "VRAM Data Write High Byte"],
+	0x211a: ["M7SEL", "Mode 7 Settings"],
+	0x211b: ["M7A", "Mode 7 Matrix A"],
+	0x211c: ["M7B", "Mode 7 Matrix B"],
+	0x211d: ["M7C", "Mode 7 Matrix C"],
+	0x211e: ["M7D", "Mode 7 Matrix D"],
+	0x211f: ["M7X", "Mode 7 Center X"],
+	0x2120: ["M7Y", "Mode 7 Center Y"],
+	0x2121: ["CGADD", "CGRAM Address"],
+	0x2122: ["CGDATA", "CGRAM Data Write"],
+	0x2123: ["W12SEL", "Window Mask Settings for BG1 and BG2"],
+	0x2124: ["W34SEL", "Window Mask Settings for BG3 and BG4"],
+	0x2125: ["WOBJSEL", "Window Mask Settings for Objects and Color Window"],
+	0x2126: ["W1L", "Window 1 Left Position"],
+	0x2127: ["W1R", "Window 1 Right Position"],
+	0x2128: ["W2L", "Window 2 Left Position"],
+	0x2129: ["W2R", "Window 2 Right Position"],
+	0x212a: ["WBGLOG", "Window Mask Logic for Backgrounds"],
+	0x212b: ["WOBJLOG", "Window Mask Logic for Objects and Color Window"],
+	0x212c: ["TMAIN", "Mainscreen Designation"],
+	0x212d: ["TSUB", "Subscreen Designation"],
+	0x212e: ["TMW", "Window Mask Designation for the Main Screen"],
+	0x212f: ["TSW", "Window Mask Designation for the Subscreen"],
+	0x2130: ["CGWSEL", "Color Addition Select"],
+	0x2131: ["CGADSUB", "Color Math Designation"],
+	0x2132: ["COLDATA", "Fixed Color Data"],
+	0x2133: ["SETINI", "Screen Mode/Video Select"],
+	0x2134: ["MPYL", "Multiplication Result Low Byte"],
+	0x2135: ["MPYM", "Multiplication Result Middle Byte"],
+	0x2136: ["MPYH", "Multiplication Result High Byte"],
+	0x2137: ["SLHV", "Software Latch for H/V Counter"],
+	0x2138: ["OAMDATAREAD", "Data for OAM read"],
+	0x2139: ["VMDATALREAD", "VRAM Data Read Low Byte"],
+	0x213a: ["VMDATAHREAD", "VRAM Data Read High Byte"],
+	0x213b: ["CGDATAREAD", "CGRAM Data Read"],
+	0x213c: ["OPHCT", "Horizontal Scanline Location"],
+	0x213d: ["OPVCT", "Vertical Scanline Location"],
+	0x213e: ["STAT77", "5C77 PPU-1 Status Flag and Version"],
+	0x213f: ["STAT78", "5C78 PPU-2 Status Flag and Version"],
+	0x2140: ["APUIO0", "APU I/O Port 0"],
+	0x2141: ["APUIO1", "APU I/O Port 1"],
+	0x2142: ["APUIO2", "APU I/O Port 2"],
+	0x2143: ["APUIO3", "APU I/O Port 4"],
+	0x2180: ["WMDATA", "WRAM Data Read/Write"],
+	0x2181: ["WMADDL", "WRAM Address Low Byte"],
+	0x2182: ["WMADDM", "WRAM Address Middle Byte"],
+	0x2183: ["WMADDH", "WRAM Address High Byte"],
+	0x4016: ["JOYSER0", "Joypad Port 1"],
+	0x4017: ["JOYSER1", "Joypad Port 2"],
+	0x4200: ["NMITIMEN", "Interrupt Enable Flags"],
+	0x4201: ["WRIO", "I/O port output/write"],
+	0x4202: ["WRMPYA", "Multiplicand A"],
+	0x4203: ["WRMPYB", "Multplier B"],
+	0x4204: ["WRDIVL", "Dividend Low Byte"],
+	0x4205: ["WRDIVH", "Dividend High Byte"],
+	0x4206: ["WRDIVB", "Divisor"],
+	0x4207: ["HTIMEL", "H-Count Timer"],
+	0x4208: ["HTIMEH", "H-Count Timer MSB"],
+	0x4209: ["VTIMEL", "V-Count Timer"],
+	0x420a: ["VTIMEH", "V-Count Timer MSB"],
+	0x420b: ["MDMAEN", "DMA Channel Enable"],
+	0x420c: ["HDMAEN", "HDMA Channel Enable"],
+	0x420d: ["MEMSEL", "ROM Access Speed"],
+	0x4210: ["RDNMI", "NMI Flag and 5A22 Version"],
+	0x4211: ["TIMEUP", "IRQ Flag"],
+	0x4212: ["HVBJOY", "H/V Blank Flags and Joypad Status"],
+	0x4213: ["RDIO", "I/O port input/read"],
+	0x4214: ["RDDIVL", "Quotient of Divide Result Low Byte"],
+	0x4215: ["RDDIVH", "Quotient of Divide Result High Byte"],
+	0x4216: ["RDMPYL", "Multiplication Product or Divide Remainder Low Byte"],
+	0x4217: ["RDMPYH", "Multiplication Product or Divide Remainder High Byte"],
+	0x4218: ["JOY1L", "Joyport1 Data Low Byte"],
+	0x4219: ["JOY1H", "Joyport1 Data High Byte"],
+	0x421a: ["JOY2L", "Joyport2 Data Low Byte"],
+	0x421b: ["JOY2H", "Joyport2 Data High Byte"],
+	0x421c: ["JOY3L", "Joyport3 Data Low Byte"],
+	0x421d: ["JOY3H", "Joyport3 Data High Byte"],
+	0x421e: ["JOY4L", "Joyport4 Data Low Byte"],
+	0x421f: ["JOY4H", "Joyport4 Data High Byte"],
+	0x4300: ["DMAP0", "DMA 0 Control"],
+	0x4301: ["DMADEST0", "DMA 0 Destination Register"],
+	0x4302: ["DMASRC0L", "DMA 0 Source Adress Low Byte"],
+	0x4303: ["DMASRC0H", "DMA 0 Source Address High Byte"],
+	0x4304: ["DMASRC0B", "DMA 0 Source Address Bank"],
+	0x4305: ["DMALEN0L", "DMA 0 Transfer Size Low Byte"],
+	0x4306: ["DMALEN0H", "DMA 0 Transfer Size High Byte"],
+	0x4307: ["DMALEN0B", "DMA 0 Transfer Bank"],
+	0x4308: ["HDMATBL0L", "HDMA 0 Table Address Low Byte"],
+	0x4309: ["HDMATBL0H", "HDMA 0 Table Address High Byte"],
+	0x430a: ["HDMACNT0", "HDMA 0 Line Counter"],
+	0x4310: ["DMAP1", "DMA 1 Control"],
+	0x4311: ["DMADEST1", "DMA 1 Destination Register"],
+	0x4312: ["DMASRC1L", "DMA 1 Source Adress Low Byte"],
+	0x4313: ["DMASRC1H", "DMA 1 Source Address High Byte"],
+	0x4314: ["DMASRC1B", "DMA 1 Source Address Bank"],
+	0x4315: ["DMALEN1L", "DMA 1 Transfer Size Low Byte"],
+	0x4316: ["DMALEN1H", "DMA 1 Transfer Size High Byte"],
+	0x4317: ["DMALEN1B", "DMA 1 Transfer Bank"],
+	0x4318: ["HDMATBL1L", "HDMA 1 Table Address Low Byte"],
+	0x4319: ["HDMATBL1H", "HDMA 1 Table Address High Byte"],
+	0x431a: ["HDMACNT1", "HDMA 1 Line Counter"],
+	0x4320: ["DMAP2", "DMA 2 Control"],
+	0x4321: ["DMADEST2", "DMA 2 Destination Register"],
+	0x4322: ["DMASRC2L", "DMA 2 Source Adress Low Byte"],
+	0x4323: ["DMASRC2H", "DMA 2 Source Address High Byte"],
+	0x4324: ["DMASRC2B", "DMA 2 Source Address Bank"],
+	0x4325: ["DMALEN2L", "DMA 2 Transfer Size Low Byte"],
+	0x4326: ["DMALEN2H", "DMA 2 Transfer Size High Byte"],
+	0x4327: ["DMALEN2B", "DMA 2 Transfer Bank"],
+	0x4328: ["HDMATBL2L", "HDMA 2 Table Address Low Byte"],
+	0x4329: ["HDMATBL2H", "HDMA 2 Table Address High Byte"],
+	0x432a: ["HDMACNT2", "HDMA 2 Line Counter"],
+	0x4330: ["DMAP3", "DMA 3 Control"],
+	0x4331: ["DMADEST3", "DMA 3 Destination Register"],
+	0x4332: ["DMASRC3L", "DMA 3 Source Adress Low Byte"],
+	0x4333: ["DMASRC3H", "DMA 3 Source Address High Byte"],
+	0x4334: ["DMASRC3B", "DMA 3 Source Address Bank"],
+	0x4335: ["DMALEN3L", "DMA 3 Transfer Size Low Byte"],
+	0x4336: ["DMALEN3H", "DMA 3 Transfer Size High Byte"],
+	0x4337: ["DMALEN3B", "DMA 3 Transfer Bank"],
+	0x4338: ["HDMATBL3L", "HDMA 3 Table Address Low Byte"],
+	0x4339: ["HDMATBL3H", "HDMA 3 Table Address High Byte"],
+	0x433a: ["HDMACNT3", "HDMA 3 Line Counter"],
+	0x4340: ["DMAP4", "DMA 4 Control"],
+	0x4341: ["DMADEST4", "DMA 4 Destination Register"],
+	0x4342: ["DMASRC4L", "DMA 4 Source Adress Low Byte"],
+	0x4343: ["DMASRC4H", "DMA 4 Source Address High Byte"],
+	0x4344: ["DMASRC4B", "DMA 4 Source Address Bank"],
+	0x4345: ["DMALEN4L", "DMA 4 Transfer Size Low Byte"],
+	0x4346: ["DMALEN4H", "DMA 4 Transfer Size High Byte"],
+	0x4347: ["DMALEN4B", "DMA 4 Transfer Bank"],
+	0x4348: ["HDMATBL4L", "HDMA 4 Table Address Low Byte"],
+	0x4349: ["HDMATBL4H", "HDMA 4 Table Address High Byte"],
+	0x434a: ["HDMACNT4", "HDMA 4 Line Counter"],
+	0x4350: ["DMAP5", "DMA 5 Control"],
+	0x4351: ["DMADEST5", "DMA 5 Destination Register"],
+	0x4352: ["DMASRC5L", "DMA 5 Source Adress Low Byte"],
+	0x4353: ["DMASRC5H", "DMA 5 Source Address High Byte"],
+	0x4354: ["DMASRC5B", "DMA 5 Source Address Bank"],
+	0x4355: ["DMALEN5L", "DMA 5 Transfer Size Low Byte"],
+	0x4356: ["DMALEN5H", "DMA 5 Transfer Size High Byte"],
+	0x4357: ["DMALEN5B", "DMA 5 Transfer Bank"],
+	0x4358: ["HDMATBL5L", "HDMA 5 Table Address Low Byte"],
+	0x4359: ["HDMATBL5H", "HDMA 5 Table Address High Byte"],
+	0x435a: ["HDMACNT5", "HDMA 5 Line Counter"],
+	0x4360: ["DMAP6", "DMA 6 Control"],
+	0x4361: ["DMADEST6", "DMA 6 Destination Register"],
+	0x4362: ["DMASRC6L", "DMA 6 Source Adress Low Byte"],
+	0x4363: ["DMASRC6H", "DMA 6 Source Address High Byte"],
+	0x4364: ["DMASRC6B", "DMA 6 Source Address Bank"],
+	0x4365: ["DMALEN6L", "DMA 6 Transfer Size Low Byte"],
+	0x4366: ["DMALEN6H", "DMA 6 Transfer Size High Byte"],
+	0x4367: ["DMALEN6B", "DMA 6 Transfer Bank"],
+	0x4368: ["HDMATBL6L", "HDMA 6 Table Address Low Byte"],
+	0x4369: ["HDMATBL6H", "HDMA 6 Table Address High Byte"],
+	0x436a: ["HDMACNT6", "HDMA 6 Line Counter"],
+	0x4370: ["DMAP7", "DMA 7 Control"],
+	0x4371: ["DMADEST7", "DMA 7 Destination Register"],
+	0x4372: ["DMASRC7L", "DMA 7 Source Adress Low Byte"],
+	0x4373: ["DMASRC7H", "DMA 7 Source Address High Byte"],
+	0x4374: ["DMASRC7B", "DMA 7 Source Address Bank"],
+	0x4375: ["DMALEN7L", "DMA 7 Transfer Size Low Byte"],
+	0x4376: ["DMALEN7H", "DMA 7 Transfer Size High Byte"],
+	0x4377: ["DMALEN7B", "DMA 7 Transfer Bank"],
+	0x4378: ["HDMATBL7L", "HDMA 7 Table Address Low Byte"],
+	0x4379: ["HDMATBL7H", "HDMA 7 Table Address High Byte"],
+	0x437a: ["HDMACNT7", "HDMA 7 Line Counter"]
+}
+
 class Disassembler:
 
 	def __init__(self, cart, options={}):
@@ -384,7 +581,7 @@ class Disassembler:
 		return self.ins("cpx" + self.immediate_ind())
 
 	def opEC(self):
-		return self.ins("cpx" + self.abs())
+		return self.abs_lookup("cpx")
 
 	def opE4(self):
 		return self.ins("cpx" + self.dir_page())
@@ -394,7 +591,7 @@ class Disassembler:
 		return self.ins("cpy" + self.immediate_ind())
 
 	def opCC(self):
-		return self.ins("cpy" + self.abs())
+		return self.abs_lookup("cpy")
 
 	def opC4(self):
 		return self.ins("cpy" + self.dir_page())
@@ -404,7 +601,7 @@ class Disassembler:
 		return self.ins("dec A")
 
 	def opCE(self):
-		return self.ins("dec" + self.abs())
+		return self.abs_lookup("dec")
 
 	def opC6(self):
 		return self.ins("dec" + self.dir_page())
@@ -428,7 +625,7 @@ class Disassembler:
 		return self.ins("eor" + self.immediate())
 
 	def op4D(self):
-		return self.ins("eor" + self.abs())
+		return self.abs_lookup("dec")
 
 	def op4F(self):
 		return self.ins("eor" + self.abs_long())
@@ -474,7 +671,7 @@ class Disassembler:
 		return self.ins("inc A")
 
 	def opEE(self):
-		return self.ins("inc" + self.abs())
+		return self.abs_lookup("inc")
 
 	def opE6(self):
 		return self.ins("inc" + self.dir_page())
@@ -495,7 +692,7 @@ class Disassembler:
 
 	# JMP
 	def op4C(self):
-		address = (self.pos + 0xFF0000) | self.pipe16()
+		address = (self.pos & 0xFF0000) | self.pipe16()
 		self.set_label( address ) 
 		return self.ins("jmp L%06X" % address)
 
@@ -531,7 +728,7 @@ class Disassembler:
 		return self.ins("lda" + self.immediate())
 
 	def opAD(self):
-		return self.ins("lda" + self.abs())
+		return self.abs_lookup("lda")
 
 	def opAF(self):
 		return self.ins("lda" + self.abs_long())
@@ -577,7 +774,7 @@ class Disassembler:
 		return self.ins("ldx" + self.immediate_ind())
 
 	def opAE(self):
-		return self.ins("ldx" + self.abs())
+		return self.abs_lookup("ldx")
 
 	def opA6(self):
 		return self.ins("ldx" + self.dir_page())
@@ -593,7 +790,7 @@ class Disassembler:
 		return self.ins("ldy" + self.immediate_ind())
 
 	def opAC(self):
-		return self.ins("ldy" + self.abs())
+		return self.abs_lookup("ldy")
 
 	def opA4(self):
 		return self.ins("ldy" + self.dir_page())
@@ -609,7 +806,7 @@ class Disassembler:
 		return self.ins("lsr A")
 
 	def op4E(self):
-		return self.ins("lsr" + self.abs())
+		return self.abs_lookup("lsr")
 
 	def op46(self):
 		return self.ins("lsr" + self.dir_page())
@@ -637,7 +834,7 @@ class Disassembler:
 		return self.ins("ora" + self.immediate())
 
 	def op0D(self):
-		return self.ins("ora" + self.abs())
+		return self.abs_lookup("ora")
 
 	def op0F(self):
 		return self.ins("ora" + self.abs_long())
@@ -771,7 +968,7 @@ class Disassembler:
 		return self.ins("rol A")
 
 	def op2E(self):
-		return self.ins("rol" + self.abs())
+		return self.abs_lookup("rol")
 
 	def op26(self):
 		return self.ins("rol" + self.dir_page())
@@ -787,7 +984,7 @@ class Disassembler:
 		return self.ins("ror A")
 
 	def op6E(self):
-		return self.ins("ror" + self.abs())
+		return self.abs_lookup("ror")
 
 	def op66(self):
 		return self.ins("ror" + self.dir_page())
@@ -815,7 +1012,7 @@ class Disassembler:
 		return self.ins("sbc" + self.immediate())
 
 	def opED(self):
-		return self.ins("sbc" + self.abs())
+		return self.abs_lookup("sbc")
 
 	def opEF(self):
 		return self.ins("sbc" + self.abs_long())
@@ -858,7 +1055,7 @@ class Disassembler:
 
 	# STA
 	def op8D(self):
-		return self.ins("sta" + self.abs())
+		return self.abs_lookup("sta")
 
 	def op8F(self):
 		return self.ins("sta" + self.abs_long())
@@ -905,7 +1102,7 @@ class Disassembler:
 
 	# STX
 	def op8E(self):
-		return self.ins("stx" + self.abs())
+		return self.abs_lookup("stx")
 
 	def op86(self):
 		return self.ins("stx" + self.dir_page())
@@ -915,7 +1112,7 @@ class Disassembler:
 
 	# STY
 	def op8C(self):
-		return self.ins("sty" + self.abs())
+		return self.abs_lookup("sty")
 
 	def op84(self):
 		return self.ins("sty" + self.dir_page())
@@ -925,7 +1122,7 @@ class Disassembler:
 
 	# STZ
 	def op9C(self):
-		return self.ins("stz" + self.abs())
+		return self.abs_lookup("stz")
 
 	def op64(self):
 		return self.ins("stz" + self.dir_page())
@@ -986,14 +1183,14 @@ class Disassembler:
  
  	# TRB
 	def op1C(self):
-		return self.ins("trb" + self.abs())
+		return self.abs_lookup("trb")
 
 	def op14(self):
 		return self.ins("trb" + self.dir_page())
  
  	# TSB
 	def op0C(self):
-		return self.ins("tsb" + self.abs())
+		return self.abs_lookup("tsb")
 
 	def op04(self):
 		return self.ins("tsb" + self.dir_page())
@@ -1030,6 +1227,15 @@ class Disassembler:
 
 	def abs(self):
 		return " $%04X" % self.pipe16()
+
+	def abs_lookup(self, op):
+		address = self.pipe16()
+		address_info = StaticAddresses.get(address)
+
+		if address_info:
+			return self.ins(op + " " + address_info[0], comment = address_info[1])
+		else:
+			return self.ins(op + self.abs())
 
 	def abs_indir(self):
 		return " ($%04X)" % self.pipe16()
@@ -1124,4 +1330,4 @@ class Instruction:
 		self.preamble = preamble
 
 	def __str__(self):
-		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "  " + self.comment if self.comment else "")
+		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "\t\t; " + self.comment if self.comment else "")
