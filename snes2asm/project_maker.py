@@ -9,6 +9,7 @@ class ProjectMaker:
 		self.disasm = disasm
 
 	def output(self, dir):
+		print("Writing project files...")
 		if not os.path.isdir(dir):
 			os.mkdir(dir)
 
@@ -31,7 +32,10 @@ class ProjectMaker:
 		f.close()
 		template = PercentTemplate(hdr_temp)
 		rom_speed = 'FASTROM' if self.cart.fastrom else 'SLOWROM'
-		rom_map = 'HIROM' if self.cart.hirom else 'LOROM'
+		if self.cart.extended:
+			rom_map = 'EXHIROM' if self.cart.hirom else 'EXLOROM ; unsupported map type'
+		else:
+			rom_map = 'HIROM' if self.cart.hirom else 'LOROM'
 		hdr = template.substitute(
 			title=self.cart.title[0:21].ljust(21),
 			rom_banks=len(self.cart.data) / 0x8000,
@@ -60,7 +64,7 @@ class ProjectMaker:
 		f.close
 
 	def get_vector(self, address):
-		return "$%04X" % address
+		return "L%06X" % address
 
 class PercentTemplate(Template):
 	delimiter = '%'

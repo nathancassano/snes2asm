@@ -2,6 +2,7 @@ import snes2asm
 from collections import OrderedDict
 
 from snes2asm.cartridge import Cartridge
+from snes2asm.rangetree import RangeTree
 
 InstructionSizes = [
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x0
@@ -228,8 +229,13 @@ class Disassembler:
 		self.flags = 0
 		self.labels = set()
 		self.code = OrderedDict()
+		self.decoders = RangeTree()
+		self.add_decoder(Headers(self.cart.header,self.cart.header+80, comment = 'SNES Header'))
+
 
 	def run(self):
+		print "Disassembling..."
+		self.mark_vectors()
 		if self.options.banks:
 			for b in self.options.banks:
 				if b < self.cart.bank_count():
@@ -241,22 +247,20 @@ class Disassembler:
 
 		self.fill_data_banks()
 
+	def add_decoder(self, decoder):
+		self.decoders.add(decoder.start, decoder.end, decoder)
+
+	# Mark header vectors as code labels
+	def mark_vectors(self):
+		vectors = ["nvec_unused", "nvec_cop", "nvec_brk", "nvec_abort", "nvec_nmi", "nvec_reset", "nvec_irq", "evec_unused", "evec_cop", "evec_unused2", "evec_abort", "evec_nmi", "evec_reset", "evec_irq"]
+
+		for v in vectors:
+			addr = getattr(self.cart, v)
+			self.labels.add(addr)
+
 	def auto_run(self):
-
-		# Decode first bank
-		self.decode_bank(0)	
-
-		while True:
-			remaining = False 
-			for label in self.labels.copy():
-				bank = self.cart.bank_from_label(label)
-				if self.banks[bank] == None:
-					remaining = True
-					self.decode_bank(bank)
-
-			if not remaining:
-				break
-
+		self.decode(0, len(self.cart.data))
+		
 	def decode_bank(self, bank):
 		start = self.cart.bank_size() * bank
 		end = start + self.cart.bank_size()
@@ -266,8 +270,21 @@ class Disassembler:
 
 		self.pos = start
 		while self.pos < end:
+
 			op = self.cart[self.pos]
 			op_size = self.opSize(op)
+
+			decoder = self.decoders.intersects(self.pos, self.pos + op_size)
+			if decoder:
+
+				if self.pos + op_size > decoder.start:
+					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[self.pos : decoder.start - 1]), comment = 'Opcode overrunning decoder')
+
+				for pos, instr in decoder.decode(self.cart):
+					self.code[pos] = instr
+
+				self.pos = decoder.end + 1
+				continue
 
 			if (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode %02X overrunning bank boundry at %06X. Skipping." % (op, self.pos))
@@ -1317,9 +1334,27 @@ class Disassembler:
 	def pipe24(self):
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
-	def output(self, path):
-		pass
+class Decoder:
+	def __init__(self, start, end, comment=None):
+		self.start = start
+		self.end = end
+		self.comment = comment
 
+	def name(self):
+		return "%s%06x-%06x" % (self.__name__, self.start, self.end)
+
+	def decode(self, cart):
+		show_comment = self.comment != None
+		for y in range(self.start, self.end, 16):
+			line = '.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)])
+			if show_comment:
+				yield (y, Instruction(line, comment=self.comment))
+				show_comment = False
+			else:
+				yield (y, Instruction(line))
+
+class Headers(Decoder):
+	pass
 
 class Instruction:
 	def __init__(self, code, preamble=None, comment=None):

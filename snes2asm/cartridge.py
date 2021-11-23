@@ -8,6 +8,7 @@ class Cartridge:
 		self.hirom = False
 		self.fastrom = False
 		self.base_address = 0
+		self.header = 0
 
     # Data indexing and slicing
 	def __getitem__(self, i):
@@ -42,6 +43,10 @@ class Cartridge:
 			print("This file looks the wrong size to be a legitimate rom image.")
 			exit(1)
 
+		self.extended = size > 0x400000
+
+		self.header = 0x400000 if self.extended else 0
+
 		if self.options.get('hirom'):
 			self.hirom = True
 		elif self.options.get('lorom'):
@@ -62,14 +67,23 @@ class Cartridge:
 
 		self.base_address = 0x400000 if self.hirom else 0x008000
 
-		self.header_offset = 0x07fb0 if not self.hirom else 0x0ffb0
+		self.header = 0x07fb0 if not self.hirom else 0x0ffb0
 
 		self.parse_header()
 
-	def parse_header(self):
-		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.sram_size, self.country, self.license_code, self.rom_mask, self.comp_check, self.check_sum) = struct.unpack("H4s7s3b21s7b2H", self.data[self.header_offset:self.header_offset+48])
+		type = "Ext" if self.extended else ""
+		type = type + ( "HiROM" if self.hirom else "LoROM")
+		tv = "PAL" if self.country >= 2 and self.country <= 12 else "NTSC"
+		print("Detected: %s[0x%x] ROMID:%s Type:%s TV:%s CheckSum:%04x" % (type, len(self.data), self.title, self.map_type(), tv, self.check_sum))
 
-		(self.nvec_unused, self.nvec_cop, self.nvec_brk, self.nvec_abort, self.nvec_nmi, self.nvec_reset, self.nvec_irq, self.evec_unused, self.evec_cop, self.evec_unused2, self.evec_abort, self.evec_nmi, self.evec_reset, self.evec_irq) = struct.unpack("I6HI6H", self.data[self.header_offset+48:self.header_offset+80])
+	def parse_header(self):
+		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.sram_size, self.country, self.license_code, self.rom_mask, self.comp_check, self.check_sum) = struct.unpack("H4s7s3b21s7b2H", self.data[self.header:self.header+48])
+
+		(self.nvec_unused, self.nvec_cop, self.nvec_brk, self.nvec_abort, self.nvec_nmi, self.nvec_reset, self.nvec_irq, self.evec_unused, self.evec_cop, self.evec_unused2, self.evec_abort, self.evec_nmi, self.evec_reset, self.evec_irq) = struct.unpack("I6HI6H", self.data[self.header+48:self.header+80])
+
+	def map_type(self):
+		type = ["ROM", "ROM+RAM", "ROM+RAM+BAT"]
+		return type[self.cart_type]
 
     # Translate rom position to address
 	def address(self, i):
@@ -95,50 +109,50 @@ class Cartridge:
 
 	def score_hirom(self):
 		score = 0
-		if (self[0xFFDC] + self[0xFFDD]*256 + self[0xFFDE] + self[0xFFDF]*256) == 0xFFFF:
+		if (self[self.header + 0xFFDC] + self[self.header + 0xFFDD]*256 + self[self.header + 0xFFDE] + self[self.header + 0xFFDF]*256) == 0xFFFF:
 			score = score + 2
 
-		if self[0xFFDA] == 0x33:
+		if self[self.header + 0xFFDA] == 0x33:
 			score = score + 2
 
-		if self[0xFFD5] & 0xf < 4:
+		if self[self.header + 0xFFD5] & 0xf < 4:
 			score = score + 2
 
-		if self[0xFFFD] & 0x80 == 0:
+		if self[self.header + 0xFFFD] & 0x80 == 0:
 			score = score - 4
 
-		if (1 << abs(self[0xFFD7] - 7)) > 48:
+		if (1 << abs(self[self.header + 0xFFD7] - 7)) > 48:
 			score = score - 1
 
-		if not all_ascii(self.data[0xFFB0:0xFFB6]):
+		if not all_ascii(self.data[self.header + 0xFFB0: self.header + 0xFFB6]):
 			score = score - 1
 
-		if not all_ascii(self.data[0xFFC0:0xFFD4]):
+		if not all_ascii(self.data[self.header + 0xFFC0:self.header + 0xFFD4]):
 			score = score - 1
 
 		return score
 
 	def score_lorom(self):
 		score = 0
-		if (self[0x7FDC] + self[0x7FDD]*256 + self[0x7FDE] + self[0x7FDF]*256) == 0xFFFF:
+		if (self[self.header + 0x7FDC] + self[self.header + 0x7FDD]*256 + self[self.header + 0x7FDE] + self[self.header + 0x7FDF]*256) == 0xFFFF:
 			score = score + 2
 
-		if self[0x7FDA] == 0x33:
+		if self[self.header + 0x7FDA] == 0x33:
 			score = score + 2
 
-		if self[0x7FD5] & 0xf < 4:
+		if self[self.header + 0x7FD5] & 0xf < 4:
 			score = score + 2
 
-		if self[0x7FFD] & 0x80 == 0:
+		if self[self.header + 0x7FFD] & 0x80 == 0:
 			score = score - 4
 
-		if 1 << abs(self[0x7FD7] - 7) > 48:
+		if 1 << abs(self[self.header + 0x7FD7] - 7) > 48:
 			score = score - 1
 
-		if not all_ascii(self.data[0xFFB0:0xFFB6]):
+		if not all_ascii(self.data[self.header + 0xFFB0:self.header + 0xFFB6]):
 			score = score - 1
 
-		if not all_ascii(self.data[0xFFC0:0xFFD4]):
+		if not all_ascii(self.data[self.header + 0xFFC0:self.header + 0xFFD4]):
 			score = score - 1
 
 		return score
