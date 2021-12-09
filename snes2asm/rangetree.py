@@ -93,7 +93,7 @@ class RangeNode():
 		self.val = val
 
 	def contains(self, index):
-		return self.start <= index and index <= self.end
+		return self.start <= index and index < self.end
 
 	def intersects(self, start, end):
 		return self.contains(start) or self.contains(end)

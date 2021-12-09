@@ -15,10 +15,10 @@ InstructionSizes = [
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # x7
 	2, 2, 3, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x8
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # x9
-    2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # xA
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # xA
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xB
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # xC
-    2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xD
+	2, 2, 2, 2, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xD
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # xE
 	2, 2, 2, 2, 3, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 4, # xF 
 ]
@@ -274,23 +274,27 @@ class Disassembler:
 			op = self.cart[self.pos]
 			op_size = self.opSize(op)
 
+			# If intersects decoder
 			decoder = self.decoders.intersects(self.pos, self.pos + op_size)
 			if decoder:
 
+				# Check if the last opcode intersected with decoder
 				if self.pos + op_size > decoder.start:
 					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[self.pos : decoder.start - 1]), comment = 'Opcode overrunning decoder')
-
+				# Run decoder
 				for pos, instr in decoder.decode(self.cart):
 					self.code[pos] = instr
 
-				self.pos = decoder.end + 1
+				self.pos = decoder.end
 				continue
 
-			if (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
+			# If opcode overruns bank boundry
+			elif (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode %02X overrunning bank boundry at %06X. Skipping." % (op, self.pos))
 				self.pos = self.pos + 1
 				continue
-				
+			
+			# Decode op codes	
 			func = getattr(self, 'op%02X' % op)
 			if not func:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Unhandled opcode: %02X at %06X" % (op, self.pos))
@@ -336,6 +340,7 @@ class Disassembler:
 
 	def opSize(self, op):
 		size = InstructionSizes[op]
+		# Calculate variable size instructions from accumulator state
 		if self.acc16() and op in [0x09,0x69, 0x29, 0x89, 0xC9, 0x49, 0xE9, 0xA9]:
 			size = size + 1
 		elif self.ind16() and op in [0xE0, 0xC0, 0xA2, 0xA0]:
