@@ -92,15 +92,6 @@ class Cartridge:
 		else:
 			return (((i & 0xFF8000) << 1) + (i & 0x7FFF)) + self.base_address
 
-	def address_to_index(self, addr):
-		if self.hirom:
-			pass
-		else:
-			pass
-
-	def bank_from_label(self, label):
-		return (label - self.base_address) / self.bank_size()
-
 	def bank_size(self):
 		return 0x10000 if self.hirom else 0x8000
 

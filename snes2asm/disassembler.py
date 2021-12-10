@@ -256,7 +256,8 @@ class Disassembler:
 
 		for v in vectors:
 			addr = getattr(self.cart, v)
-			self.labels.add(addr)
+			if (addr >= 0x8000):
+				self.labels.add(addr-0x8000)
 
 	def auto_run(self):
 		self.decode(0, len(self.cart.data))
@@ -337,6 +338,20 @@ class Disassembler:
 
 		code = code + ".ENDS\n"
 		return code
+
+	def valid_label(self, index):
+		if (index < self.pos):
+			return index in self.code
+		else:
+			# Read ahead to find valid opcode index
+			pos = self.pos
+			while pos <= index:
+				op = self.cart[pos]
+				pos = pos + self.opSize(op)
+				if index == pos:
+					return True
+
+			return False
 
 	def acc16(self):
 		return self.flags & 0x20 == 0
@@ -473,39 +488,39 @@ class Disassembler:
 
 	# BCC
 	def op90(self):
-		return self.ins("bcc" + self.branch())
+		return self.branch("bcc")
  
  	# BCS
 	def opB0(self):
-		return self.ins("bcs" + self.branch())
+		return self.branch("bcs")
  
  	# BEQ
 	def opF0(self):
-		return self.ins("beq" + self.branch())
+		return self.branch("beq")
  
  	# BNE
 	def opD0(self):
-		return self.ins("bne" + self.branch())
+		return self.branch("bne")
  
  	# BMI
 	def op30(self):
-		return self.ins("bmi" + self.branch())
+		return self.branch("bmi")
  
  	# BPL
 	def op10(self):
-		return self.ins("bpl" + self.branch())
+		return self.branch("bpl")
  
  	# BVC
 	def op50(self):
-		return self.ins("bvc" + self.branch())
+		return self.branch("bvc")
  
  	# BVS
 	def op70(self):
-		return self.ins("bvs" + self.branch())
+		return self.branch("bvs")
  
  	# BRA
 	def op80(self):
-		return self.ins("bra" + self.branch())
+		return self.branch("bra")
  
  	# BRL
 	def op82(self):
@@ -725,9 +740,20 @@ class Disassembler:
 
 	# JMP
 	def op4C(self):
-		address = (self.pos & 0xFF0000) | self.pipe16()
-		self.set_label( address ) 
-		return self.ins("jmp L%06X" % address)
+		pipe = self.pipe16()
+
+		if self.cart.hirom:
+			address = (self.pos & 0xFF0000) | pipe
+		else:
+			if pipe < 0x8000:
+				return self.ins("jmp $%04X" % pipe)
+			else:
+				address = (self.pos & 0xFF0000) | (pipe - 0x8000)
+		if self.valid_label(address):
+			self.set_label(address) 
+			return self.ins("jmp L%06X" % address)
+		else:
+			return self.ins("jmp $%04X" % pipe)
 
 	def op6C(self):
 		return self.ins("jmp" + self.abs_indir())
@@ -1327,13 +1353,17 @@ class Disassembler:
 	def block_move(self):
 		return " $%02X,$%02X" % (self.cart[self.pos+1], self.cart[self.pos+2])
 
-	def branch(self):
+	def branch(self, type):
 		val = self.pipe8()
 		if val > 127:
 			val = val - 256
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
-		self.set_label( address )
-		return " L%06X" % address
+
+		if self.valid_label(address):
+			self.set_label( address )
+			return self.ins("%s L%06X" % (type, address)) 
+		else:
+			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (type, address))
 
 	def pc_rel_long(self):
 		val = self.pipe16()

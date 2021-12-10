@@ -64,7 +64,10 @@ class ProjectMaker:
 		f.close
 
 	def get_vector(self, address):
-		return "L%06X" % address
+		if address >= 0x8000:
+			return "L%06X" % (address - 0x8000)
+		else:
+			return "$%04X" % address
 
 class PercentTemplate(Template):
 	delimiter = '%'
