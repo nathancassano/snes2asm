@@ -22,7 +22,7 @@ class ProjectMaker:
 		f.close()
 
 	def copy_files(self, dir):
-		files = ['Makefile','clean.bat','compile.bat', 'snes.asm', 'main.s']
+		files = ['Makefile','clean.bat','compile.bat', 'snes.asm', 'main.s', 'linkfile']
 		for f in files:
 			shutil.copyfile("snes2asm/template/" + f, "%s/%s" % (dir, f) )
 

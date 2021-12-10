@@ -11,10 +11,10 @@ all: $(ROM).smc
 	echo "Done"
 
 $(COBJ): *.s
-	$(AS) -o $@ $<
+	$(AS) -v -o $@ $<
 
 $(ROM).smc: $(COBJ)
-	$(LD) -dvSo $(COBJ) $(ROM).smc
+	$(LD) -d -v -S linkfile $(ROM).smc
 
 clean:
 	rm -f $(ROM).smc $(COBJ) 

@@ -1,5 +1,6 @@
 import snes2asm
 from collections import OrderedDict
+import bisect
 
 from snes2asm.cartridge import Cartridge
 from snes2asm.rangetree import RangeTree
@@ -228,10 +229,9 @@ class Disassembler:
 		self.pos = 0
 		self.flags = 0
 		self.labels = set()
-		self.code = OrderedDict()
+		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
 		self.add_decoder(Headers(self.cart.header,self.cart.header+80, comment = 'SNES Header'))
-
 
 	def run(self):
 		print "Disassembling..."
@@ -319,10 +319,23 @@ class Disassembler:
 
 	def assembly(self):
 		code = ""
-		for addr, instr in self.code.items():
-			if addr in self.labels:
-				code = code + "L%06X:\n" % addr
-			code = code + str(instr) + "\n"
+		bank = 0
+		# Process each bank
+		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
+			print "Bank %d" % bank
+			if bank == 0:
+				code = code + ".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank)
+			else:
+				code = code + ".ENDS\n\n.BANK %d SLOT 0\n\n.SECTION \"Bank%d\"\n\n" % (bank, bank)
+
+			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
+				if addr in self.labels:
+					code = code + "L%06X:\n" % addr
+				code = code + str(instr) + "\n"
+
+			bank = bank + 1
+
+		code = code + ".ENDS\n"
 		return code
 
 	def acc16(self):
@@ -1221,7 +1234,7 @@ class Disassembler:
  
  	# WDM
 	def op42(self):
-		return self.ins("wdm" + " $%02X" % self.pipe8())
+		return self.ins(".db $42, $%02X" % self.pipe8(), comment = "opcode wdm $%02X" % self.pipe8())
  
  	# XBA
 	def opEB(self):
@@ -1312,7 +1325,7 @@ class Disassembler:
 		return " $%02X" % self.pipe8()
 
 	def block_move(self):
-		return "$%02X,$%02X" % (self.cart[self.pos+1], self.cart[self.pos+2])
+		return " $%02X,$%02X" % (self.cart[self.pos+1], self.cart[self.pos+2])
 
 	def branch(self):
 		val = self.pipe8()
@@ -1369,3 +1382,13 @@ class Instruction:
 
 	def __str__(self):
 		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "\t\t; " + self.comment if self.comment else "")
+
+
+class OrderedDictRange(OrderedDict):
+
+	# Data slicing
+	def item_range(self, start, stop):
+		keys = self.keys()
+		left = bisect.bisect_left(keys, start)
+		right = bisect.bisect_left(keys, stop, left)
+		return [ (k, self[k]) for k in keys[left:right] ]

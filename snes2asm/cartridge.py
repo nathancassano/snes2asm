@@ -107,6 +107,9 @@ class Cartridge:
 	def bank_count(self):
 		return len(self.data) / self.bank_size()
 
+	def size(self):
+		return len(self.data)
+
 	def score_hirom(self):
 		score = 0
 		if (self[self.header + 0xFFDC] + self[self.header + 0xFFDD]*256 + self[self.header + 0xFFDE] + self[self.header + 0xFFDF]*256) == 0xFFFF:
