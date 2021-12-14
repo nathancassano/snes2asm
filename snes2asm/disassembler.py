@@ -696,7 +696,7 @@ class Disassembler:
 		return self.ins("eor" + self.immediate())
 
 	def op4D(self):
-		return self.abs_lookup("dec")
+		return self.abs_lookup("eor")
 
 	def op4F(self):
 		return self.ins("eor" + self.abs_long())
@@ -1375,7 +1375,7 @@ class Disassembler:
 		return " $%02X.b" % self.pipe8()
 
 	def block_move(self):
-		return " $%02X.b,$%02X.b" % (self.cart[self.pos+1], self.cart[self.pos+2])
+		return " $%02X,$%02X" % (self.cart[self.pos+2], self.cart[self.pos+1])
 
 	def branch(self, type):
 		val = self.pipe8()
