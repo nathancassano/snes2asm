@@ -327,7 +327,7 @@ class Disassembler:
 			if bank == 0:
 				code = code + ".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank)
 			else:
-				code = code + ".ENDS\n\n.BANK %d SLOT 0\n\n.SECTION \"Bank%d\"\n\n" % (bank, bank)
+				code = code + ".ENDS\n\n.BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank)
 
 			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
 				if addr in self.labels:
@@ -344,14 +344,24 @@ class Disassembler:
 			return index in self.code
 		else:
 			# Read ahead to find valid opcode index
+			flags = self.flags
 			pos = self.pos
-			while pos <= index:
-				op = self.cart[pos]
-				pos = pos + self.opSize(op)
+			valid = False
+			while self.pos <= index:
+				op = self.cart[self.pos]
+				# Follow flag changes
+				if op == 0xC2:
+					self.opC2()
+				elif op == 0xE2:
+					self.opE2()
+				self.pos = self.pos + self.opSize(op)
 				if index == pos:
-					return True
+					valid = True
+					break
 
-			return False
+			self.pos = pos
+			self.flags = flags
+			return valid
 
 	def acc16(self):
 		return self.flags & 0x20 == 0
@@ -524,7 +534,7 @@ class Disassembler:
  
  	# BRL
 	def op82(self):
-		return self.ins("brl" + self.pc_rel_long())
+		return self.pc_rel_long("brl")
 
 	# BIT
 	def op89(self):
@@ -745,6 +755,7 @@ class Disassembler:
 		if self.cart.hirom:
 			address = (self.pos & 0xFF0000) | pipe
 		else:
+			# If invalid lorom bank
 			if pipe < 0x8000:
 				return self.ins("jmp $%04X" % pipe)
 			else:
@@ -944,7 +955,7 @@ class Disassembler:
  
  	# PER
 	def op62(self):
-		return self.ins("per" + self.pc_rel_long())
+		return self.pc_rel_long("per")
  
  	# PHA
 	def op48(self):
@@ -1359,19 +1370,32 @@ class Disassembler:
 			val = val - 256
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
 
+		# If jump wraps bank
+		if not self.cart.hirom and ((self.pos & 0x7FFF) + val + 2) & 0x8000:
+			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid bank wrapping branch target (%s L%06X)" % (type, address))
+
 		if self.valid_label(address):
 			self.set_label( address )
 			return self.ins("%s L%06X" % (type, address)) 
 		else:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (type, address))
 
-	def pc_rel_long(self):
+	def pc_rel_long(self, ins):
 		val = self.pipe16()
 		if val > 32767:
 			val = val - 65536
+
+		# If jump is into lower invalid lorom address space (address < 0x8000)
+		if not self.cart.hirom and ((self.pos & 0x7FFF) + val + 3) & 0x8000:
+			return self.ins("%s $%04X" % (ins, 0xFFFF & val ), comment='Invalid branch target' )
+
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
-		self.set_label( address )
-		return " L%06X" % address
+
+		if self.valid_label(address):
+			self.set_label( address )
+			return self.ins("%s L%06X" % (ins, address))
+		else:
+			return self.ins("%s $%04X" % (ins, 0xFFFF & val))
 
 	def pipe8(self):
 		return self.cart[self.pos+1]

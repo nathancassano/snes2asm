@@ -67,7 +67,7 @@ class Cartridge:
 
 		self.base_address = 0x400000 if self.hirom else 0x008000
 
-		self.header = 0x07fb0 if not self.hirom else 0x0ffb0
+		self.header = self.header + (0x0ffb0 if self.hirom else 0x07fb0)
 
 		self.parse_header()
 
