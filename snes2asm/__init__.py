@@ -21,6 +21,7 @@ def main(argv=None):
 	parser.add_argument('-f', '--fastrom', action='store_true', default=None, help="Force fast ROM addressing")
 	parser.add_argument('-s', '--slowrom', action='store_true', default=None, help="Force slow ROM addressing")
 	parser.add_argument('-nl', '--nolabel', action='store_true', default=None, help="Use addresses instead of labels")
+	parser.add_argument('-x', '--hex', action='store_true', default=None, help="Comments show instruction hex")
 
 	args = parser.parse_args(argv[1:])
 

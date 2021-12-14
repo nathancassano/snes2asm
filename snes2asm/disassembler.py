@@ -232,6 +232,7 @@ class Disassembler:
 		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
 		self.add_decoder(Headers(self.cart.header,self.cart.header+80, comment = 'SNES Header'))
+		self.hex_comment = bool(self.options.hex)
 
 	def run(self):
 		print "Disassembling..."
@@ -301,7 +302,19 @@ class Disassembler:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Unhandled opcode: %02X at %06X" % (op, self.pos))
 				self.pos = self.pos + 1
 				continue
-			self.code[self.pos] = func()
+			ins = func()
+
+			if self.hex_comment:
+				if op_size == 1:
+					ins.comment = "%02X" % op
+				elif op_size == 2:
+					ins.comment = "%02X %02X" % (op, self.cart[self.pos + 1])
+				elif op_size == 3:
+					ins.comment = "%02X %02X %02X" % (op, self.cart[self.pos + 1], self.cart[self.pos + 2])
+				elif op_size == 4:
+					ins.comment = "%02X %02X %02X %02X" % (op, self.cart[self.pos + 1], self.cart[self.pos + 2], self.cart[self.pos + 3])
+
+			self.code[self.pos] = ins
 			self.pos = self.pos + op_size
 
 	def fill_data_banks(self):
@@ -1285,84 +1298,84 @@ class Disassembler:
 
 	def immediate(self):
 		if self.acc16():
-			return " #$%04X" % self.pipe16()
+			return " #$%04X.w" % self.pipe16()
 		else:
-			return " #$%02X" % self.pipe8()
+			return " #$%02X.b" % self.pipe8()
 
 	def immediate_ind(self):
 		if self.ind16():
-			return " #$%04X" % self.pipe16()
+			return " #$%04X.w" % self.pipe16()
 		else:
-			return " #$%02X" % self.pipe8()
+			return " #$%02X.b" % self.pipe8()
 
 	def abs(self):
-		return " $%04X" % self.pipe16()
+		return " $%04X.w" % self.pipe16()
 
 	def abs_lookup(self, op):
 		address = self.pipe16()
 		address_info = StaticAddresses.get(address)
 
 		if address_info:
-			return self.ins(op + " " + address_info[0], comment = address_info[1])
+			return self.ins(op + " " + address_info[0] + ".w", comment = address_info[1])
 		else:
 			return self.ins(op + self.abs())
 
 	def abs_indir(self):
-		return " ($%04X)" % self.pipe16()
+		return " ($%04X.w)" % self.pipe16()
 
 	def abs_ind_indir(self):
-		return " ($%04X,X)" % self.pipe16()
+		return " ($%04X.w,X)" % self.pipe16()
 
 	def abs_indir_long(self):
-		return " [$%04X]" % self.pipe16()
+		return " [$%04X.w]" % self.pipe16()
 
 	def abs_ind_x(self):
-		return " $%04X,X" % self.pipe16()
+		return " $%04X.w,X" % self.pipe16()
 
 	def abs_ind_y(self):
-		return " $%04X,Y" % self.pipe16()
+		return " $%04X.w,Y" % self.pipe16()
 
 	def abs_long(self):
-		return " $%06X" % self.pipe24()
+		return " $%06X.l" % self.pipe24()
 	
 	def abs_long_ind_x(self):
-		return " $%06X,X" % self.pipe24()
+		return " $%06X.l,X" % self.pipe24()
 
 	def dir_page(self):
-		return " $%02X" % self.pipe8()
+		return " $%02X.b" % self.pipe8()
 
 	def dir_page_indir(self):
-		return " ($%02X)" % self.pipe8()
+		return " ($%02X.b)" % self.pipe8()
 
 	def dir_page_ind_x(self):
-		return " $%02X,X" % self.pipe8()
+		return " $%02X.b,X" % self.pipe8()
 
 	def dir_page_ind_y(self):
-		return " $%02X,Y" % self.pipe8()
+		return " $%02X.b,Y" % self.pipe8()
 
 	def dir_page_indir_long(self):
-		return " [$%02X]" % self.pipe8()
+		return " [$%02X.b]" % self.pipe8()
 
 	def dir_page_ind_indir_x(self):
-		return " ($%02X,X)" % self.pipe8()
+		return " ($%02X.b,X)" % self.pipe8()
 
 	def dir_page_ind_indir_y(self):
-		return " ($%02X),Y" % self.pipe8()
+		return " ($%02X.b),Y" % self.pipe8()
 
 	def dir_page_indir_long_y(self):
-		return " [$%02X],Y" % self.pipe8()
+		return " [$%02X.b],Y" % self.pipe8()
 
 	def stack_rel(self):
-		return " $%02X,S" % self.pipe8()
+		return " $%02X.b,S" % self.pipe8()
 
 	def stack_rel_indir_y(self):
-		return " ($%02X,S),Y" % self.pipe8()
+		return " ($%02X.b,S),Y" % self.pipe8()
 
 	def stack_interrupt(self):
-		return " $%02X" % self.pipe8()
+		return " $%02X.b" % self.pipe8()
 
 	def block_move(self):
-		return " $%02X,$%02X" % (self.cart[self.pos+1], self.cart[self.pos+2])
+		return " $%02X.b,$%02X.b" % (self.cart[self.pos+1], self.cart[self.pos+2])
 
 	def branch(self, type):
 		val = self.pipe8()
@@ -1426,7 +1439,8 @@ class Decoder:
 				yield (y, Instruction(line))
 
 class Headers(Decoder):
-	pass
+	def decode(self, cart):
+		yield (self.start, Instruction('; Headers'))
 
 class Instruction:
 	def __init__(self, code, preamble=None, comment=None):
