@@ -353,6 +353,7 @@ class Disassembler:
 		return code
 
 	def valid_label(self, index):
+
 		if (index < self.pos):
 			return index in self.code
 		else:
@@ -368,7 +369,7 @@ class Disassembler:
 				elif op == 0xE2:
 					self.opE2()
 				self.pos = self.pos + self.opSize(op)
-				if index == pos:
+				if index == self.pos:
 					valid = True
 					break
 
