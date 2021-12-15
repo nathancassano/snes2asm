@@ -229,14 +229,18 @@ class Disassembler:
 		self.pos = 0
 		self.flags = 0
 		self.labels = set()
+		self.data_labels = dict()
 		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
-		self.add_decoder(Headers(self.cart.header,self.cart.header+80, comment = 'SNES Header'))
+		self.add_decoder(Headers(self.cart.header,self.cart.header+80))
 		self.hex_comment = bool(self.options.hex)
 
 	def run(self):
 		print "Disassembling..."
 		self.mark_vectors()
+
+		self.run_decoders()
+
 		if self.options.banks:
 			for b in self.options.banks:
 				if b < self.cart.bank_count():
@@ -250,6 +254,11 @@ class Disassembler:
 
 	def add_decoder(self, decoder):
 		self.decoders.add(decoder.start, decoder.end, decoder)
+
+	def run_decoders(self):
+		for dec in self.decoders.items():
+			for pos, instr in dec.decode(self.cart):
+				self.code[pos] = instr
 
 	# Mark header vectors as code labels
 	def mark_vectors(self):
@@ -279,14 +288,9 @@ class Disassembler:
 			# If intersects decoder
 			decoder = self.decoders.intersects(self.pos, self.pos + op_size)
 			if decoder:
-
 				# Check if the last opcode intersected with decoder
 				if self.pos + op_size > decoder.start:
 					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[self.pos : decoder.start - 1]), comment = 'Opcode overrunning decoder')
-				# Run decoder
-				for pos, instr in decoder.decode(self.cart):
-					self.code[pos] = instr
-
 				self.pos = decoder.end
 				continue
 
@@ -334,6 +338,9 @@ class Disassembler:
 	def assembly(self):
 		code = ""
 		bank = 0
+		# Ensure code is ordered
+		self.code.sort_keys()
+
 		# Process each bank
 		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
 			print "Bank %d" % bank
@@ -1421,10 +1428,10 @@ class Disassembler:
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
 class Decoder:
-	def __init__(self, start, end, comment=None):
+	def __init__(self, label, start, end):
+		self.label = label
 		self.start = start
 		self.end = end
-		self.comment = comment
 
 	def name(self):
 		return "%s%06x-%06x" % (self.__name__, self.start, self.end)
@@ -1440,8 +1447,32 @@ class Decoder:
 				yield (y, Instruction(line))
 
 class Headers(Decoder):
+	def __init__(self, start, end):
+		Decoder.__init__(self, "Headers", start, end)
+
 	def decode(self, cart):
-		yield (self.start, Instruction('; Headers'))
+		yield (self.start, Instruction('; Auto-generated headers', preamble=self.label+":"))
+
+class TextDecoder(Decoder):
+	def __init__(self, label, start, end, pack=None):
+		Decoder.__init__(self, label, start, end)
+		self.pack = pack
+		if self.pack != None:
+			if type(self.pack) is not list:
+				raise ValueError("TextDecoder: pack parameter is not an array")
+
+	def decode(self, cart):
+		if self.pack == None:
+			string = ''.join( chr(x) for x in cart[self.start : self.end])
+			line = '.db "%s"' % ansi_escape(string)
+			yield (self.start, Instruction(line, preamble=self.label+":"))
+		else:
+			pos = self.start
+			for (label, size) in self.pack:
+				string = ''.join( chr(x) for x in cart[pos : pos + size])
+				line = '.db "%s"' % ansi_escape(string)
+				yield (pos, Instruction(line, preamble=label+":"))
+				pos = pos + size
 
 class Instruction:
 	def __init__(self, code, preamble=None, comment=None):
@@ -1455,9 +1486,22 @@ class Instruction:
 
 class OrderedDictRange(OrderedDict):
 
+	def sort_keys(self):
+		keys = self.keys()
+		keys.sort()
+		dict_sort = OrderedDictRange((k, self[k]) for k in keys)
+		self.clear()
+		self.update(dict_sort)
+
 	# Data slicing
 	def item_range(self, start, stop):
 		keys = self.keys()
 		left = bisect.bisect_left(keys, start)
 		right = bisect.bisect_left(keys, stop, left)
 		return [ (k, self[k]) for k in keys[left:right] ]
+
+_ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}
+
+def ansi_escape(subject):
+	return ''.join([ _ESCAPE_CHARS[i] if i in _ESCAPE_CHARS else i for i in subject])
+

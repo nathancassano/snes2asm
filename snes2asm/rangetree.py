@@ -21,6 +21,27 @@ class RangeTree():
 			else:
 				return None
 
+	def items(self):
+		items = []
+		path = []
+		stack = [self.root]
+		while len(stack) != 0:
+
+			node = stack.pop()
+			if node not in path:
+				path.append(node)
+
+			if node.val:
+				path.append(node)
+				items.append(node.val)
+			else:
+				if node.right:
+					stack.append(node.right)
+				if node.left:
+					stack.append(node.left)
+
+		return items
+
 	def intersects(self, start, end):
 		node = self.root
 
