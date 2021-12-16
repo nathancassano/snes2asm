@@ -1,0 +1,20 @@
+---
+decoders:
+- type: data
+  label: gradient1
+  start: 0x2fa90
+  end: 0x2faf0
+- type: ascii
+  label: stub
+  start: 0x15ac9
+  end: 0x15c2d
+  pack: [[sound_test, 11],[sound_name,6],[sound_pan,3]]
+structs:
+  enemy_object:
+  - name: x
+    type: db
+  - name: y
+    type: db
+labels:
+  read_joy: 0x18303
+  draw_oam: 0x13983

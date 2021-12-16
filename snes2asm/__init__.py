@@ -9,13 +9,15 @@ import argparse
 from snes2asm.disassembler import Disassembler
 from snes2asm.cartridge import Cartridge
 from snes2asm.project_maker import ProjectMaker
+from snes2asm.configurator import Configurator
 
 def main(argv=None):
 	parser = argparse.ArgumentParser( prog="snes2asm", description='Disassembles snes cartridges into practical projects', epilog='')
 	parser.add_argument('input', metavar='snes.sfc', help="input snes file")
+	parser.add_argument('-v', '--verbose', action='store_true', default=None, help="Verbose output")
 	parser.add_argument('-o', '--output_dir', default='.', help="File path to output project")
+	parser.add_argument('-c', '--config', default=None, help="Path to decoding configuration yaml file")
 	parser.add_argument('-b', '--banks', nargs='+', type=int, help='Code banks to disassemble. Default is auto-detect')
-	parser.add_argument('-v', '--verbose', action='store_true', default=None, help="verbose output")
 	parser.add_argument('-hi', '--hirom', action='store_true', default=None, help="Force HiROM")
 	parser.add_argument('-lo', '--lorom', action='store_true', default=None, help="Force LoROM")
 	parser.add_argument('-f', '--fastrom', action='store_true', default=None, help="Force fast ROM addressing")
@@ -35,6 +37,11 @@ def exec_asm(options):
 	cart.open(options.input)
 
 	disasm = Disassembler(cart, options)
+
+	if options.config:
+		configurator = Configurator(options.config)
+		configurator.apply(disasm)
+
 	disasm.run()
 
 	project = ProjectMaker(cart, disasm)

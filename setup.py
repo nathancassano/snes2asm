@@ -17,6 +17,7 @@ setup(
     license="Apache 2",
     packages=find_packages(exclude=["*.tests", "*.tests.*", "examples"]),
     scripts=['bin/snes2asm'],
+    install_requires=['PyYAML'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',

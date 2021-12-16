@@ -228,7 +228,7 @@ class Disassembler:
 		self.options = options
 		self.pos = 0
 		self.flags = 0
-		self.labels = set()
+		self.labels = dict()
 		self.data_labels = dict()
 		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
@@ -258,6 +258,8 @@ class Disassembler:
 	def run_decoders(self):
 		for dec in self.decoders.items():
 			for pos, instr in dec.decode(self.cart):
+				if instr.has_label():
+					self.data_labels[pos] = instr.preamble[:-1]
 				self.code[pos] = instr
 
 	# Mark header vectors as code labels
@@ -267,7 +269,7 @@ class Disassembler:
 		for v in vectors:
 			addr = getattr(self.cart, v)
 			if (addr >= 0x8000):
-				self.labels.add(addr-0x8000)
+				self.set_label(addr-0x8000)
 
 	def auto_run(self):
 		self.decode(0, len(self.cart.data))
@@ -351,7 +353,7 @@ class Disassembler:
 
 			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
 				if addr in self.labels:
-					code = code + "L%06X:\n" % addr
+					code = code + "%s:\n" % self.labels[addr]
 				code = code + str(instr) + "\n"
 
 			bank = bank + 1
@@ -390,8 +392,10 @@ class Disassembler:
 	def ind16(self):
 		return self.flags & 0x10 == 0
 
-	def set_label(self, address):
-		self.labels.add(address)
+	def set_label(self, index, name=None):
+		if name == None:
+			name = "L%06X" % index
+		self.labels[index] = name
 
 	# Append instruction
 	def ins(self, code, preamble=None, comment=None):
@@ -1428,7 +1432,7 @@ class Disassembler:
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
 class Decoder:
-	def __init__(self, label, start, end):
+	def __init__(self, label=None, start=0, end=0):
 		self.label = label
 		self.start = start
 		self.end = end
@@ -1437,24 +1441,24 @@ class Decoder:
 		return "%s%06x-%06x" % (self.__name__, self.start, self.end)
 
 	def decode(self, cart):
-		show_comment = self.comment != None
+		show_label = self.label != None
 		for y in range(self.start, self.end, 16):
 			line = '.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)])
-			if show_comment:
-				yield (y, Instruction(line, comment=self.comment))
-				show_comment = False
+			if show_label:
+				yield (y, Instruction(line, preamble=self.label+":"))
+				show_label = False
 			else:
 				yield (y, Instruction(line))
 
 class Headers(Decoder):
 	def __init__(self, start, end):
-		Decoder.__init__(self, "Headers", start, end)
+		Decoder.__init__(self, label="Headers", start=start, end=end)
 
 	def decode(self, cart):
 		yield (self.start, Instruction('; Auto-generated headers', preamble=self.label+":"))
 
 class TextDecoder(Decoder):
-	def __init__(self, label, start, end, pack=None):
+	def __init__(self, label=None, start=0, end=0, pack=None):
 		Decoder.__init__(self, label, start, end)
 		self.pack = pack
 		if self.pack != None:
@@ -1480,6 +1484,9 @@ class Instruction:
 		self.comment = comment
 		self.preamble = preamble
 
+	def has_label(self):
+		return self.preamble != None and self.preamble[:-1] == ':'
+
 	def __str__(self):
 		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "\t\t; " + self.comment if self.comment else "")
 
@@ -1503,5 +1510,5 @@ class OrderedDictRange(OrderedDict):
 _ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}
 
 def ansi_escape(subject):
-	return ''.join([ _ESCAPE_CHARS[i] if i in _ESCAPE_CHARS else i for i in subject])
+	return ''.join([ _ESCAPE_CHARS[c] if c in _ESCAPE_CHARS else c for c in subject])
 
