@@ -16,5 +16,7 @@ structs:
   - name: y
     type: db
 labels:
-  read_joy: 0x18303
+  read_joy: 0x182EC
   draw_oam: 0x13983
+memory:
+  lives: 0x701011

@@ -230,6 +230,7 @@ class Disassembler:
 		self.flags = 0
 		self.labels = dict()
 		self.data_labels = dict()
+		self.variables = dict()
 		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
 		self.add_decoder(Headers(self.cart.header,self.cart.header+80))
@@ -343,6 +344,11 @@ class Disassembler:
 		# Ensure code is ordered
 		self.code.sort_keys()
 
+		if self.variables:
+			for index, variable in self.variables.items():
+				code = code + ".define %s $%x\n" % (variable, index)
+			code = code + "\n"
+
 		# Process each bank
 		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
 			print "Bank %d" % bank
@@ -393,9 +399,15 @@ class Disassembler:
 		return self.flags & 0x10 == 0
 
 	def set_label(self, index, name=None):
+		if self.labels.has_key(index):
+			return False
 		if name == None:
 			name = "L%06X" % index
 		self.labels[index] = name
+		return True
+
+	def set_memory(self, index, variable):
+		self.variables[index] = variable
 
 	# Append instruction
 	def ins(self, code, preamble=None, comment=None):
@@ -786,8 +798,10 @@ class Disassembler:
 			else:
 				address = (self.pos & 0xFF0000) | (pipe - 0x8000)
 		if self.valid_label(address):
-			self.set_label(address) 
-			return self.ins("jmp L%06X" % address)
+			if self.set_label(address):
+				return self.ins("jmp L%06X" % address)
+			else:
+				return self.ins("jmp %s" % self.labels[address])
 		else:
 			return self.ins("jmp $%04X" % pipe)
 
@@ -1400,8 +1414,10 @@ class Disassembler:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid bank wrapping branch target (%s L%06X)" % (type, address))
 
 		if self.valid_label(address):
-			self.set_label( address )
-			return self.ins("%s L%06X" % (type, address)) 
+			if self.set_label( address ):
+				return self.ins("%s L%06X" % (type, address)) 
+			else:
+				return self.ins("%s %s" % (type, self.labels[address])) 
 		else:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (type, address))
 
@@ -1417,8 +1433,10 @@ class Disassembler:
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
 
 		if self.valid_label(address):
-			self.set_label( address )
-			return self.ins("%s L%06X" % (ins, address))
+			if self.set_label( address ):
+				return self.ins("%s L%06X" % (ins, address))
+			else:
+				return self.ins("%s %s" % (ins, self.labels[address]))
 		else:
 			return self.ins("%s $%04X" % (ins, 0xFFFF & val))
 

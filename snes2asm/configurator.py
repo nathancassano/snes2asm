@@ -31,6 +31,10 @@ class Configurator:
 			for label, index in self.config['labels'].items():
 				disasm.set_label(index, label)
 
+		if self.config.has_key('memory'):
+			for variable, index in self.config['memory'].items():
+				disasm.set_memory(index, variable)
+
 class DataStruct:
 	def __init__(self, name, props):
 		self.name = name
