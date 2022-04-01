@@ -228,7 +228,9 @@ class Disassembler:
 		self.options = options
 		self.pos = 0
 		self.flags = 0
+		self.valid_code = set()
 		self.labels = dict()
+		self.label_bank_aliases = dict()
 		self.data_labels = dict()
 		self.variables = dict()
 		self.code = OrderedDictRange()
@@ -241,6 +243,8 @@ class Disassembler:
 		self.mark_vectors()
 
 		self.run_decoders()
+
+		self.mark_labels()
 
 		if self.options.banks:
 			for b in self.options.banks:
@@ -270,7 +274,7 @@ class Disassembler:
 		for v in vectors:
 			addr = getattr(self.cart, v)
 			if (addr >= 0x8000):
-				self.set_label(addr-0x8000)
+				self.label_name(addr-0x8000, v)
 
 	def auto_run(self):
 		self.decode(0, len(self.cart.data))
@@ -359,6 +363,14 @@ class Disassembler:
 
 			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
 				if addr in self.labels:
+					# Bank aliases
+					if addr in self.label_bank_aliases:
+						bank_set = self.label_bank_aliases[addr]
+						for bank_alias in bank_set:
+							bank_label = bank_alias | (addr & 0xFFFF)
+							code = code + ".BASE $%02X\nL%06X:\n" % (bank_alias >> 16, bank_label)
+						code = code + ".BASE $00\n"
+					# Label
 					code = code + "%s:\n" % self.labels[addr]
 				code = code + str(instr) + "\n"
 
@@ -368,15 +380,20 @@ class Disassembler:
 		return code
 
 	def valid_label(self, index):
+		if index >= self.cart.size():
+			return False
 
-		if (index < self.pos):
-			return index in self.code
-		else:
-			# Read ahead to find valid opcode index
-			flags = self.flags
-			pos = self.pos
-			valid = False
-			while self.pos <= index:
+		return index in self.valid_code
+
+	# Read ahead to find valid opcode index
+	def mark_labels(self):
+		flags = self.flags
+		pos = self.pos
+		for bank in range(0, self.cart.size(), 0x8000):
+			self.pos = bank
+			end = self.pos + 0x8000
+			while self.pos < end:
+				self.valid_code.add(self.pos)
 				op = self.cart[self.pos]
 				# Follow flag changes
 				if op == 0xC2:
@@ -384,13 +401,9 @@ class Disassembler:
 				elif op == 0xE2:
 					self.opE2()
 				self.pos = self.pos + self.opSize(op)
-				if index == self.pos:
-					valid = True
-					break
 
-			self.pos = pos
-			self.flags = flags
-			return valid
+		self.pos = 0
+		self.flags = flags
 
 	def acc16(self):
 		return self.flags & 0x20 == 0
@@ -398,13 +411,13 @@ class Disassembler:
 	def ind16(self):
 		return self.flags & 0x10 == 0
 
-	def set_label(self, index, name=None):
+	def label_name(self, index, name=None):
 		if self.labels.has_key(index):
-			return False
+			return self.labels[index]
 		if name == None:
 			name = "L%06X" % index
 		self.labels[index] = name
-		return True
+		return name
 
 	def set_memory(self, index, variable):
 		self.variables[index] = variable
@@ -787,23 +800,46 @@ class Disassembler:
 
 	# JMP
 	def op4C(self):
+		return self.jmp_abs("jmp")
+
+	def jmp_abs(self, op):
 		pipe = self.pipe16()
 
 		if self.cart.hirom:
-			address = (self.pos & 0xFF0000) | pipe
+			address = (self.pos & 0xFF0000) | (pipe - 0x8000)
 		else:
 			# If invalid lorom bank
 			if pipe < 0x8000:
-				return self.ins("jmp $%04X" % pipe)
+				return self.ins("%s $%04X.w" % (op, pipe))
 			else:
 				address = (self.pos & 0xFF0000) | (pipe - 0x8000)
 		if self.valid_label(address):
-			if self.set_label(address):
-				return self.ins("jmp L%06X" % address)
-			else:
-				return self.ins("jmp %s" % self.labels[address])
+			return self.ins("%s %s" % (op, self.label_name(address)))
 		else:
-			return self.ins("jmp $%04X" % pipe)
+			return self.ins("%s $%04X.w" % (op, pipe))
+
+	def jmp_abs_long(self, op):
+		pipe = self.pipe24()
+
+		index = self.cart.index(pipe)
+
+		# Bad address
+		if index == -1:
+			return self.ins("%s $%06X.l" % (op, pipe))
+
+		# If shadow bank
+		if pipe >= 0x800000:
+			pipe_bank = 0xFF0000 & pipe
+			# Track list of banks at this index
+			if self.label_bank_aliases.has_key(index):
+				self.label_bank_aliases[index].add(pipe_bank)
+			else:
+				self.label_bank_aliases[index] = set([pipe_bank])
+			# Goto label alias (jmp L80F1F1)
+			index = pipe - self.cart.base_address
+			return self.ins("%s L%06X" % (op, index))
+		else:
+			return self.ins("%s %s" % (op, self.label_name(index)))
 
 	def op6C(self):
 		return self.ins("jmp" + self.abs_indir())
@@ -812,22 +848,17 @@ class Disassembler:
 		return self.ins("jmp" + self.abs_ind_indir())
 
 	def op5C(self):
-		#TODO
-		#self.set_label( self.pipe24() ) 
-		return self.ins("jmp" + self.abs_long())
+		return self.jmp_abs_long("jmp")
 
 	def opDC(self):
 		return self.ins("jmp" + self.abs_indir_long())
 
 	# JSR
 	def op22(self):
-		#TODO
-		#self.set_label( self.pipe24() ) 
-		return self.ins("jsr" + self.abs_long())
+		return self.jmp_abs_long("jsr")
 
 	def op20(self):
-		self.set_label( (self.pos & 0xFF0000) | self.pipe16() ) 
-		return self.ins("jsr" + self.abs())
+		return self.jmp_abs("jsr")
 
 	def opFC(self):
 		return self.ins("jsr" + self.abs_ind_indir())
@@ -1414,10 +1445,7 @@ class Disassembler:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid bank wrapping branch target (%s L%06X)" % (type, address))
 
 		if self.valid_label(address):
-			if self.set_label( address ):
-				return self.ins("%s L%06X" % (type, address)) 
-			else:
-				return self.ins("%s %s" % (type, self.labels[address])) 
+			return self.ins("%s %s" % (type, self.label_name(address)))
 		else:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (type, address))
 
@@ -1433,10 +1461,7 @@ class Disassembler:
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
 
 		if self.valid_label(address):
-			if self.set_label( address ):
-				return self.ins("%s L%06X" % (ins, address))
-			else:
-				return self.ins("%s %s" % (ins, self.labels[address]))
+			return self.ins("%s %s" % (ins, self.label_name(address)))
 		else:
 			return self.ins("%s $%04X" % (ins, 0xFFFF & val))
 
@@ -1507,7 +1532,6 @@ class Instruction:
 
 	def __str__(self):
 		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "\t\t; " + self.comment if self.comment else "")
-
 
 class OrderedDictRange(OrderedDict):
 

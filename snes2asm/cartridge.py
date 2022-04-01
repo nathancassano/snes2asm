@@ -7,7 +7,7 @@ class Cartridge:
 		self.data = []
 		self.hirom = False
 		self.fastrom = False
-		self.base_address = 0
+		self.base_address = 0x8000
 		self.header = 0
 
     # Data indexing and slicing
@@ -65,7 +65,7 @@ class Cartridge:
 			# Auto-detect
 			self.fastrom = (self[0xFFD5 if self.hirom else 0x7FD5] & 0x30) != 0
 
-		self.base_address = 0x400000 if self.hirom else 0x008000
+		self.base_address = 0x400000 if self.extended else 0x008000
 
 		self.header = self.header + (0x0ffb0 if self.hirom else 0x07fb0)
 
@@ -88,9 +88,23 @@ class Cartridge:
     # Translate rom position to address
 	def address(self, i):
 		if self.hirom:
-			return self.base_address | i
+			return self.base_address + i
 		else:
 			return (((i & 0xFF8000) << 1) + (i & 0x7FFF)) + self.base_address
+
+	# Translate address to rom position
+	def index(self, address):
+		if address < 0x8000:
+			return -1
+		# LoROM
+		if not self.hirom:
+			if address & 0x8000 == 0:
+				return -1
+			address = (((address & 0x3F0000) >> 1) + (address & 0x7FFF))
+		else:
+			address = address & 0x7FFFFF
+		mask = self.size() - 1
+		return address & mask
 
 	def bank_size(self):
 		return 0x10000 if self.hirom else 0x8000
