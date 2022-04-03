@@ -446,7 +446,7 @@ class Disassembler:
 		return self.ins("adc" + self.abs())
 
 	def op6F(self):
-		return self.ins("adc" + self.abs_long())
+		return self.abs_long_lookup("adc")
 
 	def op65(self):
 		return self.ins("adc" + self.dir_page())
@@ -492,7 +492,7 @@ class Disassembler:
 		return self.ins("and" + self.abs())
 
 	def op2F(self):
-		return self.ins("and" + self.abs_long())
+		return self.abs_long_lookup("and")
 
 	def op25(self):
 		return self.ins("and" + self.dir_page())
@@ -642,7 +642,7 @@ class Disassembler:
 		return self.ins("cmp" + self.abs())
 
 	def opCF(self):
-		return self.ins("cmp" + self.abs_long())
+		return self.abs_long_lookup("cmp")
 
 	def opC5(self):
 		return self.ins("cmp" + self.dir_page())
@@ -736,7 +736,7 @@ class Disassembler:
 		return self.abs_lookup("eor")
 
 	def op4F(self):
-		return self.ins("eor" + self.abs_long())
+		return self.abs_long_lookup("eor")
 
 	def op45(self):
 		return self.ins("eor" + self.dir_page())
@@ -871,7 +871,7 @@ class Disassembler:
 		return self.abs_lookup("lda")
 
 	def opAF(self):
-		return self.ins("lda" + self.abs_long())
+		return self.abs_long_lookup("lda")
 
 	def opA5(self):
 		return self.ins("lda" + self.dir_page())
@@ -977,7 +977,7 @@ class Disassembler:
 		return self.abs_lookup("ora")
 
 	def op0F(self):
-		return self.ins("ora" + self.abs_long())
+		return self.abs_long_lookup("ora")
 
 	def op05(self):
 		return self.ins("ora" + self.dir_page())
@@ -1155,7 +1155,7 @@ class Disassembler:
 		return self.abs_lookup("sbc")
 
 	def opEF(self):
-		return self.ins("sbc" + self.abs_long())
+		return self.abs_long_lookup("sbc")
 
 	def opE5(self):
 		return self.ins("sbc" + self.dir_page())
@@ -1198,7 +1198,7 @@ class Disassembler:
 		return self.abs_lookup("sta")
 
 	def op8F(self):
-		return self.ins("sta" + self.abs_long())
+		return self.abs_long_lookup("sta")
 
 	def op85(self):
 		return self.ins("sta" + self.dir_page())
@@ -1394,6 +1394,14 @@ class Disassembler:
 
 	def abs_long(self):
 		return " $%06X.l" % self.pipe24()
+
+	def abs_long_lookup(self, op):
+		address = self.pipe24()
+		address_info = StaticAddresses.get(address)
+		if address_info:
+			return self.ins(op + " " + address_info[0] + ".l", comment = address_info[1])
+		else:
+			return self.ins(op + self.abs_long())
 	
 	def abs_long_ind_x(self):
 		return " $%06X.l,X" % self.pipe24()
