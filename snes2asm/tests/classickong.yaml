@@ -20,3 +20,4 @@ labels:
   draw_oam: 0x13983
 memory:
   lives: 0x701011
+  var_test: 0xDAA7

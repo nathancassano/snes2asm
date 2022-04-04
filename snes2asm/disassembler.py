@@ -435,6 +435,8 @@ class Disassembler:
 			size = size + 1
 		return size
 
+	# OP Codes
+
 	def op01(self):
 		return self.ins("ora" + self.dir_page_ind_indir_x())
 
@@ -1373,50 +1375,91 @@ class Disassembler:
 		address_info = StaticAddresses.get(address)
 
 		if address_info:
-			return self.ins(op + " " + address_info[0] + ".w", comment = address_info[1])
+			return self.ins("%s %s.w" % (op, address_info[0]), comment = address_info[1])
+		elif self.variables.has_key(address):
+			return self.ins("%s %s.w" %  (op, self.variables[address]))
 		else:
 			return self.ins(op + self.abs())
-
-	def abs_indir(self):
-		return " ($%04X.w)" % self.pipe16()
-
-	def abs_ind_indir(self):
-		return " ($%04X.w,X)" % self.pipe16()
-
-	def abs_indir_long(self):
-		return " [$%04X.w]" % self.pipe16()
-
-	def abs_ind_x(self):
-		return " $%04X.w,X" % self.pipe16()
-
-	def abs_ind_y(self):
-		return " $%04X.w,Y" % self.pipe16()
-
-	def abs_long(self):
-		return " $%06X.l" % self.pipe24()
 
 	def abs_long_lookup(self, op):
 		address = self.pipe24()
 		address_info = StaticAddresses.get(address)
+
 		if address_info:
-			return self.ins(op + " " + address_info[0] + ".l", comment = address_info[1])
+			return self.ins("%s %s.l" % (op, address_info[0]), comment = address_info[1])
+		elif self.variables.has_key(address):
+			return self.ins("%s %s.l" %  (op, self.variables[address]))
 		else:
 			return self.ins(op + self.abs_long())
+
+	def abs_indir(self):
+		address = self.pipe16()
+		if self.variables.has_key(address):
+			return " ($%s.w)" % self.variables[address]
+		else:
+			return " ($%04X.w)" % address
+
+	def abs_ind_indir(self):
+		address = self.pipe16()
+		if self.variables.has_key(address):
+			return " (%s.w,X)" % self.variables[address]
+		else:
+			return " ($%04X.w,X)" % address
+
+	def abs_indir_long(self):
+		address = self.pipe16()
+		if self.variables.has_key(address):
+			return " [%s.w]" % self.variables[address]
+		else:
+			return " [$%04X.w]" % address
+
+	def abs_ind_x(self):
+		address = self.pipe16()
+		if self.variables.has_key(address):
+			return " %s.w,X" % self.variables[address]
+		else:
+			return " $%04X.w,X" % address
+
+	def abs_ind_y(self):
+		address = self.pipe16()
+		if self.variables.has_key(address):
+			return " $%04X.w,Y" % self.variables[address]
+		else:
+			return " $%04X.w,Y" % address
+
+	def abs_long(self):
+		return " $%06X.l" % self.pipe24()
 	
 	def abs_long_ind_x(self):
 		return " $%06X.l,X" % self.pipe24()
 
 	def dir_page(self):
-		return " $%02X.b" % self.pipe8()
+		address = self.pipe8()
+		if self.variables.has_key(address):
+			return " %s.b" % self.variables[address]
+		else:
+			return " $%02X.b" % address
 
 	def dir_page_indir(self):
-		return " ($%02X.b)" % self.pipe8()
+		address = self.pipe8()
+		if self.variables.has_key(address):
+			return " (%s.b)" % self.variables[address]
+		else:
+			return " ($%02X.b)" % address
 
 	def dir_page_ind_x(self):
-		return " $%02X.b,X" % self.pipe8()
+		address = self.pipe8()
+		if self.variables.has_key(address):
+			return " %s.b,X" % self.variables[address]
+		else:
+			return " $%02X.b,X" % address
 
 	def dir_page_ind_y(self):
-		return " $%02X.b,Y" % self.pipe8()
+		address = self.pipe8()
+		if self.variables.has_key(address):
+			return " %s.b,Y" % self.variables[address]
+		else:
+			return " $%02X.b,Y" % address
 
 	def dir_page_indir_long(self):
 		return " [$%02X.b]" % self.pipe8()

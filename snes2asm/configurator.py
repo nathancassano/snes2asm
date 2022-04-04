@@ -29,7 +29,7 @@ class Configurator:
 
 		if self.config.has_key('labels'):
 			for label, index in self.config['labels'].items():
-				disasm.set_label(index, label)
+				disasm.label_name(index, label)
 
 		if self.config.has_key('memory'):
 			for variable, index in self.config['memory'].items():
