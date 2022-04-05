@@ -77,7 +77,7 @@ class Cartridge:
 		print("Detected: %s[0x%x] ROMID:%s Type:%s TV:%s CheckSum:%04x" % (type, len(self.data), self.title, self.map_type(), tv, self.check_sum))
 
 	def parse_header(self):
-		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.sram_size, self.country, self.license_code, self.rom_mask, self.comp_check, self.check_sum) = struct.unpack("H4s7s3b21s7b2H", self.data[self.header:self.header+48])
+		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.special_version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.sram_size, self.country, self.license_code, self.version, self.comp_check, self.check_sum) = struct.unpack("H4s7s3B21s7B2H", self.data[self.header:self.header+48])
 
 		(self.nvec_unused, self.nvec_cop, self.nvec_brk, self.nvec_abort, self.nvec_nmi, self.nvec_reset, self.nvec_irq, self.evec_unused, self.evec_cop, self.evec_unused2, self.evec_abort, self.evec_nmi, self.evec_reset, self.evec_irq) = struct.unpack("I6HI6H", self.data[self.header+48:self.header+80])
 
