@@ -274,7 +274,7 @@ class Disassembler:
 		for v in vectors:
 			addr = getattr(self.cart, v)
 			if (addr >= 0x8000):
-				self.label_name(addr-0x8000, v)
+				self.label_name(addr-0x8000)
 
 	def auto_run(self):
 		self.decode(0, len(self.cart.data))
@@ -367,8 +367,9 @@ class Disassembler:
 					if addr in self.label_bank_aliases:
 						bank_set = self.label_bank_aliases[addr]
 						for bank_alias in bank_set:
+							base = (bank_alias >> 16) & 0xF0
 							bank_label = bank_alias | (addr & 0xFFFF)
-							code = code + ".BASE $%02X\nL%06X:\n" % (bank_alias >> 16, bank_label)
+							code = code + ".BASE $%02X\nL%06X:\n" % (base, bank_label)
 						code = code + ".BASE $00\n"
 					# Label
 					code = code + "%s:\n" % self.labels[addr]
@@ -393,14 +394,23 @@ class Disassembler:
 			self.pos = bank
 			end = self.pos + 0x8000
 			while self.pos < end:
-				self.valid_code.add(self.pos)
+
 				op = self.cart[self.pos]
+				opSize = self.opSize(op)
+
+				# Detect decoders and skip over them
+				decoder = self.decoders.intersects(self.pos, self.pos + opSize)
+				if decoder:
+					self.pos = decoder.end
+					continue
+
+				self.valid_code.add(self.pos)
 				# Follow flag changes
 				if op == 0xC2:
 					self.opC2()
 				elif op == 0xE2:
 					self.opE2()
-				self.pos = self.pos + self.opSize(op)
+				self.pos = self.pos + opSize
 
 		self.pos = 0
 		self.flags = flags
@@ -826,11 +836,12 @@ class Disassembler:
 		index = self.cart.index(pipe)
 
 		# Bad address
-		if index == -1:
+		if index == -1 or not self.valid_label(index):
 			return self.ins("%s $%06X.l" % (op, pipe))
 
 		# If shadow bank
 		if pipe >= 0x800000:
+			self.label_name(index)
 			pipe_bank = 0xFF0000 & pipe
 			# Track list of banks at this index
 			if self.label_bank_aliases.has_key(index):
@@ -839,9 +850,9 @@ class Disassembler:
 				self.label_bank_aliases[index] = set([pipe_bank])
 			# Goto label alias (jmp L80F1F1)
 			index = pipe - self.cart.base_address
-			return self.ins("%s L%06X" % (op, index))
+			return self.ins("%s L%06X.l" % (op, index))
 		else:
-			return self.ins("%s %s" % (op, self.label_name(index)))
+			return self.ins("%s %s.l" % (op, self.label_name(index)))
 
 	def op6C(self):
 		return self.ins("jmp" + self.abs_indir())
@@ -1526,10 +1537,11 @@ class Disassembler:
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
 class Decoder:
-	def __init__(self, label=None, start=0, end=0):
+	def __init__(self, label=None, start=0, end=0, file=None):
 		self.label = label
 		self.start = start
 		self.end = end
+		self.file = file
 
 	def name(self):
 		return "%s%06x-%06x" % (self.__name__, self.start, self.end)

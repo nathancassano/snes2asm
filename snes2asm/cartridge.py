@@ -100,9 +100,11 @@ class Cartridge:
 		if not self.hirom:
 			if address & 0x8000 == 0:
 				return -1
-			address = (((address & 0x3F0000) >> 1) + (address & 0x7FFF))
+			address = (((address & 0x7F0000) >> 1) + (address & 0x7FFF))
 		else:
 			address = address & 0x7FFFFF
+		if address > self.size():
+			return -1
 		mask = self.size() - 1
 		return address & mask
 
