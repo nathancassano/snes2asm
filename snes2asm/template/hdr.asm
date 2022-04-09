@@ -1,18 +1,14 @@
-.MEMORYMAP                      ; Begin describing the system architecture.
-  SLOTSIZE $8000                ; The slot is $8000 bytes in size. More details on slots later.
-  DEFAULTSLOT 0                 ; There's only 1 slot in SNES, there are more in other consoles.
-  SLOT 0 $8000                  ; Defines Slot 0's starting address.
-  SLOT 1 $0 $80					; tcc direct page vars
-  SLOT 2 $2000 $6000			; half of the page
-  SLOT 3 $0 $4000				; quarter of the page
-  SLOT 4 $80 $1f80				; assembly code direct page vars
+.MEMORYMAP
+  SLOTSIZE $%bank_size
+  DEFAULTSLOT 0
+  SLOT 0 $0000
 .ENDME  
 
-.ROMBANKSIZE $8000              ; Every ROM bank is 32 KBytes in size
-.ROMBANKS %rom_banks              ; Tell WLA how many ROM banks we want
+.ROMBANKSIZE $%bank_size		; Every ROM bank is 32 KBytes in size
+.ROMBANKS %rom_banks			; Tell WLA how many ROM banks we want
 
 .SNESHEADER
-  ID "SNES"                     ; 1-4 letter string, just leave it as "SNES"
+  ID "SNES"						; 1-4 letter string, just leave it as "SNES"
 
   NAME "%title"  ; Program Title - can't be over 21 bytes,
   ;    "123456789012345678901"  ; use spaces for unused bytes of the name.

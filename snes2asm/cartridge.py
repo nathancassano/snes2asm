@@ -7,7 +7,6 @@ class Cartridge:
 		self.data = []
 		self.hirom = False
 		self.fastrom = False
-		self.base_address = 0x8000
 		self.header = 0
 
     # Data indexing and slicing
@@ -65,8 +64,6 @@ class Cartridge:
 			# Auto-detect
 			self.fastrom = (self[0xFFD5 if self.hirom else 0x7FD5] & 0x30) != 0
 
-		self.base_address = 0x400000 if self.extended else 0x008000
-
 		self.header = self.header + (0x0ffb0 if self.hirom else 0x07fb0)
 
 		self.parse_header()
@@ -87,10 +84,14 @@ class Cartridge:
 
     # Translate rom position to address
 	def address(self, i):
-		if self.hirom:
-			return self.base_address + i
+		if self.extended:
+			# TODO
+			return 0x400000 + i
 		else:
-			return (((i & 0xFF8000) << 1) + (i & 0x7FFF)) + self.base_address
+			if self.hirom:
+				return 0x400000 + i
+			else:
+				return (((i & 0xFF8000) << 1) + (i & 0x7FFF)) + 0x8000
 
 	# Translate address to rom position
 	def index(self, address):

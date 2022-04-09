@@ -240,11 +240,12 @@ class Disassembler:
 
 	def run(self):
 		print "Disassembling..."
-		self.mark_vectors()
 
 		self.run_decoders()
 
 		self.mark_labels()
+
+		self.mark_vectors()
 
 		if self.options.banks:
 			for b in self.options.banks:
@@ -274,7 +275,9 @@ class Disassembler:
 		for v in vectors:
 			addr = getattr(self.cart, v)
 			if (addr >= 0x8000):
-				self.label_name(addr-0x8000)
+				addr = addr - 0x8000
+				if (self.valid_label(addr)):
+					self.label_name(addr)
 
 	def auto_run(self):
 		self.decode(0, len(self.cart.data))
@@ -390,9 +393,9 @@ class Disassembler:
 	def mark_labels(self):
 		flags = self.flags
 		pos = self.pos
-		for bank in range(0, self.cart.size(), 0x8000):
+		for bank in range(0, self.cart.size(), self.cart.bank_size()):
 			self.pos = bank
-			end = self.pos + 0x8000
+			end = self.pos + self.cart.bank_size()
 			while self.pos < end:
 
 				op = self.cart[self.pos]
@@ -849,7 +852,9 @@ class Disassembler:
 			else:
 				self.label_bank_aliases[index] = set([pipe_bank])
 			# Goto label alias (jmp L80F1F1)
-			index = pipe - self.cart.base_address
+			index = pipe
+			if not self.cart.hirom:
+				index = index - 0x8000
 			return self.ins("%s L%06X.l" % (op, index))
 		else:
 			return self.ins("%s %s.l" % (op, self.label_name(index)))

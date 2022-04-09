@@ -38,7 +38,8 @@ class ProjectMaker:
 			rom_map = 'HIROM' if self.cart.hirom else 'LOROM'
 		hdr = template.substitute(
 			title=self.cart.title[0:21].ljust(21),
-			rom_banks=len(self.cart.data) / 0x8000,
+			bank_size="%06X" % self.cart.bank_size(),
+			rom_banks=len(self.cart.data) / self.cart.bank_size(),
 			rom_speed=rom_speed,
 			rom_map=rom_map,
 			cart_type="%02X" % self.cart.cart_type,
@@ -64,7 +65,7 @@ class ProjectMaker:
 		f.close
 
 	def get_vector(self, address):
-		if address >= 0x8000:
+		if address >= 0x8000 and self.disasm.valid_label(address - 0x8000):
 			return "L%06X" % (address - 0x8000)
 		else:
 			return "$%04X" % address
