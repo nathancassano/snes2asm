@@ -346,23 +346,23 @@ class Disassembler:
 			self.code[y] = self.ins(line)
 
 	def assembly(self):
-		code = ""
+		code = []
 		bank = 0
 		# Ensure code is ordered
 		self.code.sort_keys()
 
 		if self.variables:
 			for index, variable in self.variables.items():
-				code = code + ".define %s $%x\n" % (variable, index)
-			code = code + "\n"
+				code.append(".define %s $%x\n" % (variable, index))
+			code.append("\n")
 
 		# Process each bank
 		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
 			print "Bank %d" % bank
 			if bank == 0:
-				code = code + ".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank)
+				code.append(".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
 			else:
-				code = code + ".ENDS\n\n.BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank)
+				code.append(".ENDS\n\n.BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
 
 			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
 				if addr in self.labels:
@@ -372,16 +372,16 @@ class Disassembler:
 						for bank_alias in bank_set:
 							base = (bank_alias >> 16) & 0xF0
 							bank_label = bank_alias | (addr & 0xFFFF)
-							code = code + ".BASE $%02X\nL%06X:\n" % (base, bank_label)
+							code.append(".BASE $%02X\nL%06X:\n" % (base, bank_label))
 						code = code + ".BASE $00\n"
 					# Label
-					code = code + "%s:\n" % self.labels[addr]
-				code = code + str(instr) + "\n"
+					code.append("%s:\n" % self.labels[addr])
+				code.append(str(instr) + "\n")
 
 			bank = bank + 1
 
-		code = code + ".ENDS\n"
-		return code
+		code.append(".ENDS\n")
+		return "".join(code)
 
 	def valid_label(self, index):
 		if index >= self.cart.size():
