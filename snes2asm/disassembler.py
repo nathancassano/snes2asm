@@ -373,7 +373,7 @@ class Disassembler:
 							base = (bank_alias >> 16) & 0xF0
 							bank_label = bank_alias | (addr & 0xFFFF)
 							code.append(".BASE $%02X\nL%06X:\n" % (base, bank_label))
-						code = code + ".BASE $00\n"
+						code.append(".BASE $00\n")
 					# Label
 					code.append("%s:\n" % self.labels[addr])
 				code.append(str(instr) + "\n")
@@ -1501,36 +1501,40 @@ class Disassembler:
 	def block_move(self):
 		return " $%02X,$%02X" % (self.cart[self.pos+2], self.cart[self.pos+1])
 
-	def branch(self, type):
+	def branch(self, ins):
 		val = self.pipe8()
 		if val > 127:
 			val = val - 256
-		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
+
+		mask = 0xFFFF if self.cart.hirom else 0x7FFF
+		dest = (self.pos & mask) + val + 2
 
 		# If jump wraps bank
-		if not self.cart.hirom and ((self.pos & 0x7FFF) + val + 2) & 0x8000:
-			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid bank wrapping branch target (%s L%06X)" % (type, address))
+		if dest < 0 or dest >= mask:
+			return self.ins("%s $%02X" % (ins, self.pipe8()), comment="Bank wrapping branch target")
 
+		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
 		if self.valid_label(address):
-			return self.ins("%s %s" % (type, self.label_name(address)))
+			return self.ins("%s %s" % (ins, self.label_name(address)))
 		else:
-			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (type, address))
+			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (ins, address))
 
 	def pc_rel_long(self, ins):
 		val = self.pipe16()
 		if val > 32767:
 			val = val - 65536
 
-		# If jump is into lower invalid lorom address space (address < 0x8000)
-		if not self.cart.hirom and ((self.pos & 0x7FFF) + val + 3) & 0x8000:
-			return self.ins("%s $%04X" % (ins, 0xFFFF & val ), comment='Invalid branch target' )
+		mask = 0xFFFF if self.cart.hirom else 0x7FFF
+		dest = (self.pos & mask) + val + 3
+
+		if dest < 0 or dest >= mask:
+			return self.ins("%s $%04X" % (ins, 0xFFFF & val ), comment='Bank wrapping branch target' )
 
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
-
 		if self.valid_label(address):
 			return self.ins("%s %s" % (ins, self.label_name(address)))
 		else:
-			return self.ins("%s $%04X" % (ins, 0xFFFF & val))
+			return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="Invalid branch target (%s L%06X)" % (ins, address))
 
 	def pipe8(self):
 		return self.cart[self.pos+1]
