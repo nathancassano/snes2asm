@@ -102,12 +102,11 @@ class Cartridge:
 			if address & 0x8000 == 0:
 				return -1
 			address = (((address & 0x7F0000) >> 1) + (address & 0x7FFF))
-		else:
-			address = address & 0x7FFFFF
+		mask = self.size() | self.size() - 1
+		address = address & mask
 		if address > self.size():
 			return -1
-		mask = self.size() - 1
-		return address & mask
+		return address
 
 	def bank_size(self):
 		return 0x10000 if self.hirom else 0x8000

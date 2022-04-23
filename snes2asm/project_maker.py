@@ -39,6 +39,7 @@ class ProjectMaker:
 		hdr = template.substitute(
 			title=self.cart.title[0:21].ljust(21),
 			bank_size="%06X" % self.cart.bank_size(),
+			slot_size="0" if self.cart.hirom else "8000",
 			rom_banks=len(self.cart.data) / self.cart.bank_size(),
 			rom_speed=rom_speed,
 			rom_map=rom_map,

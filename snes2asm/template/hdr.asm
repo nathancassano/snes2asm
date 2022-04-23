@@ -1,7 +1,7 @@
 .MEMORYMAP
   SLOTSIZE $%bank_size
   DEFAULTSLOT 0
-  SLOT 0 $0000
+  SLOT 0 $%slot_size
 .ENDME  
 
 .ROMBANKSIZE $%bank_size		; Every ROM bank is 32 KBytes in size

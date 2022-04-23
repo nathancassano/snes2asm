@@ -370,7 +370,7 @@ class Disassembler:
 					if addr in self.label_bank_aliases:
 						bank_set = self.label_bank_aliases[addr]
 						for bank_alias in bank_set:
-							base = (bank_alias >> 16) & 0xF0
+							base = (bank_alias >> 16) & 0xE0
 							bank_label = bank_alias | (addr & 0xFFFF)
 							code.append(".BASE $%02X\nL%06X:\n" % (base, bank_label))
 						code.append(".BASE $00\n")
@@ -821,7 +821,7 @@ class Disassembler:
 		pipe = self.pipe16()
 
 		if self.cart.hirom:
-			address = (self.pos & 0xFF0000) | (pipe - 0x8000)
+			address = (self.pos & 0xFF0000) | pipe
 		else:
 			# If invalid lorom bank
 			if pipe < 0x8000:
@@ -829,7 +829,7 @@ class Disassembler:
 			else:
 				address = (self.pos & 0xFF0000) | (pipe - 0x8000)
 		if self.valid_label(address):
-			return self.ins("%s %s" % (op, self.label_name(address)))
+			return self.ins("%s %s.w" % (op, self.label_name(address)))
 		else:
 			return self.ins("%s $%04X.w" % (op, pipe))
 
@@ -842,20 +842,23 @@ class Disassembler:
 		if index == -1 or not self.valid_label(index):
 			return self.ins("%s $%06X.l" % (op, pipe))
 
-		# If shadow bank
-		if pipe >= 0x800000:
+		# If jumping to a mirrored bank
+		pipe_bank = 0xFF0000 & pipe
+		if pipe_bank != 0xFF0000 & index:
+			# Set placeholder for label
 			self.label_name(index)
-			pipe_bank = 0xFF0000 & pipe
 			# Track list of banks at this index
 			if self.label_bank_aliases.has_key(index):
 				self.label_bank_aliases[index].add(pipe_bank)
 			else:
 				self.label_bank_aliases[index] = set([pipe_bank])
-			# Goto label alias (jmp L80F1F1)
-			index = pipe
-			if not self.cart.hirom:
-				index = index - 0x8000
-			return self.ins("%s L%06X.l" % (op, index))
+
+			if self.cart.hirom:
+				label = pipe
+			else:
+				label = pipe_bank | (0xFFFF & index)
+
+			return self.ins("%s L%06X.l" % (op, label))
 		else:
 			return self.ins("%s %s.l" % (op, self.label_name(index)))
 
@@ -1511,11 +1514,11 @@ class Disassembler:
 
 		# If jump wraps bank
 		if dest < 0 or dest >= mask:
-			return self.ins("%s $%02X" % (ins, self.pipe8()), comment="Bank wrapping branch target")
+			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Bank wrapping branch target")
 
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
 		if self.valid_label(address):
-			return self.ins("%s %s" % (ins, self.label_name(address)))
+			return self.ins("%s %s.b" % (ins, self.label_name(address)))
 		else:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (ins, address))
 
@@ -1528,11 +1531,11 @@ class Disassembler:
 		dest = (self.pos & mask) + val + 3
 
 		if dest < 0 or dest >= mask:
-			return self.ins("%s $%04X" % (ins, 0xFFFF & val ), comment='Bank wrapping branch target' )
+			return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="Bank wrapping branch target")
 
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
 		if self.valid_label(address):
-			return self.ins("%s %s" % (ins, self.label_name(address)))
+			return self.ins("%s %s.w" % (ins, self.label_name(address)))
 		else:
 			return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="Invalid branch target (%s L%06X)" % (ins, address))
 
