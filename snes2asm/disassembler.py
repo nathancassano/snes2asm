@@ -243,9 +243,9 @@ class Disassembler:
 
 		self.run_decoders()
 
-		self.mark_labels()
-
 		self.mark_vectors()
+
+		self.mark_labels()
 
 		if self.options.banks:
 			for b in self.options.banks:
@@ -276,16 +276,80 @@ class Disassembler:
 			addr = getattr(self.cart, v)
 			if (addr >= 0x8000):
 				addr = addr - 0x8000
-				if (self.valid_label(addr)):
-					self.label_name(addr)
+				self.label_name(addr)
 
 	def auto_run(self):
-		self.decode(0, len(self.cart.data))
-		
+		for bank in range(0, self.cart.bank_count()):
+			self.decode_bank(bank)
+
+	def find_bank_labels(self, start, end):
+		# Find existing labels inside bank
+		bank_labels = []
+		for label in self.labels.keys():
+			if label > start and label < end:
+				bank_labels.append(label)
+		bank_labels = sorted(bank_labels)
+		return bank_labels
+
+	# Read ahead to find valid opcode index
+	def mark_labels(self):
+		flags = self.flags
+		pos = self.pos
+
+		# TODO: Process first bank then banks with most labels
+
+		for bank in range(0, self.cart.size(), self.cart.bank_size()):
+			self.pos = bank
+			end = self.pos + self.cart.bank_size()
+
+			for label in self.find_bank_labels(self.pos, end):
+				self.mark_label_section(label)
+				self.pos = label
+			self.mark_label_section(end)
+
+		self.pos = 0
+		self.flags = flags
+
+	def mark_label_section(self, end):
+		while self.pos < end:
+			op = self.cart[self.pos]
+			opSize = self.opSize(op)
+
+			# Detect decoders and skip over them
+			decoder = self.decoders.intersects(self.pos, self.pos + opSize)
+			if decoder:
+				self.pos = decoder.end
+				continue
+
+			self.valid_code.add(self.pos)
+			# Follow flag changes
+			if op == 0xC2:
+				self.opC2()
+			elif op == 0xE2:
+				self.opE2()
+			# jmp absolute long
+			elif op == 0x5C or op == 0x22:
+				pipe = self.pipe24()
+				index = self.cart.index(pipe)
+				#TODO
+				#if index != -1:
+					#self.valid_code.add(index)
+			# jmp absolute
+			elif op == 0x4C or op == 0x20:
+				pass
+			self.pos = self.pos + opSize
+
 	def decode_bank(self, bank):
+
 		start = self.cart.bank_size() * bank
 		end = start + self.cart.bank_size()
-		self.decode(start, end)
+
+		# Decode sections in bank
+		pos = start
+		for label in self.find_bank_labels(start, end):
+			self.decode(pos, label)
+			pos = label
+		self.decode(pos, end)
 	
 	def decode(self, start, end):
 
@@ -299,14 +363,20 @@ class Disassembler:
 			decoder = self.decoders.intersects(self.pos, self.pos + op_size)
 			if decoder:
 				# Check if the last opcode intersected with decoder
-				if self.pos + op_size > decoder.start:
+				if self.pos < decoder.start:
 					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[self.pos : decoder.start - 1]), comment = 'Opcode overrunning decoder')
+				elif self.pos + op_size < decoder.end:
+					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[decoder.end + 1: self.pos + op_size]), comment = 'Opcode overrunning decoder')
 				self.pos = decoder.end
 				continue
 
 			# If opcode overruns bank boundry
 			elif (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode %02X overrunning bank boundry at %06X. Skipping." % (op, self.pos))
+				self.pos = self.pos + 1
+				continue
+			elif self.pos + op_size > end:
+				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode overrunning section")
 				self.pos = self.pos + 1
 				continue
 			
@@ -387,36 +457,11 @@ class Disassembler:
 		if index >= self.cart.size():
 			return False
 
+		if self.decoders.find(index) != None:
+			return False
+
 		return index in self.valid_code
 
-	# Read ahead to find valid opcode index
-	def mark_labels(self):
-		flags = self.flags
-		pos = self.pos
-		for bank in range(0, self.cart.size(), self.cart.bank_size()):
-			self.pos = bank
-			end = self.pos + self.cart.bank_size()
-			while self.pos < end:
-
-				op = self.cart[self.pos]
-				opSize = self.opSize(op)
-
-				# Detect decoders and skip over them
-				decoder = self.decoders.intersects(self.pos, self.pos + opSize)
-				if decoder:
-					self.pos = decoder.end
-					continue
-
-				self.valid_code.add(self.pos)
-				# Follow flag changes
-				if op == 0xC2:
-					self.opC2()
-				elif op == 0xE2:
-					self.opE2()
-				self.pos = self.pos + opSize
-
-		self.pos = 0
-		self.flags = flags
 
 	def acc16(self):
 		return self.flags & 0x20 == 0
@@ -424,6 +469,7 @@ class Disassembler:
 	def ind16(self):
 		return self.flags & 0x10 == 0
 
+	# Get the generated or assigned label name for a rom address
 	def label_name(self, index, name=None):
 		if self.labels.has_key(index):
 			return self.labels[index]
@@ -623,31 +669,31 @@ class Disassembler:
  
  	# CLC
 	def op18(self):
-		return self.ins("clc")
+		return self.ins("clc", comment='Clear carry')
  
  	# CLD
 	def opD8(self):
-		return self.ins("cld")
+		return self.ins("cld", comment='Clear decimal')
  
  	# CLI
 	def op58(self):
-		return self.ins("cli")
+		return self.ins("cli", comment='Clear interupt')
  
  	# CLV
 	def opB8(self):
-		return self.ins("clv")
+		return self.ins("clv", comment='Clear overflow')
  
  	# SEC
 	def op38(self):
-		return self.ins("sec")
+		return self.ins("sec", comment='Set carry')
  
  	# SED
 	def opF8(self):
-		return self.ins("sed")
+		return self.ins("sed", comment='Set decimal')
  
  	# SEI
 	def op78(self):
-		return self.ins("sei")
+		return self.ins("sei", comment='Disable interrupts')
 
 	# CMP
 	def opC9(self):
@@ -1370,7 +1416,7 @@ class Disassembler:
  
  	# XCE
 	def opFB(self):
-		return self.ins("xce")
+		return self.ins("xce", comment='Exchange carry bit to set emulation or native mode')
 
 	# Address modes
 
