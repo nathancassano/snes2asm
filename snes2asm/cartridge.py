@@ -95,13 +95,19 @@ class Cartridge:
 
 	# Translate address to rom position
 	def index(self, address):
-		if address < 0x8000:
+		
+		if address < 0x8000 or ( address >= 0x7E0000 and address < 0x7FFFFF):
 			return -1
+		# HiROM
+		if self.hirom:
+			if address < 0x3FFFFF and address & 0x8000 == 0:
+				return -1
 		# LoROM
-		if not self.hirom:
+		else:
 			if address & 0x8000 == 0:
 				return -1
 			address = (((address & 0x7F0000) >> 1) + (address & 0x7FFF))
+
 		mask = self.size() | self.size() - 1
 		address = address & mask
 		if address > self.size():
