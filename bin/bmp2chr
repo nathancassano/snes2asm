@@ -1,0 +1,7 @@
+#!/usr/bin/env python
+
+import sys
+from snes2asm import bmp2chr
+
+if __name__ == '__main__':
+    bmp2chr(sys.argv)
