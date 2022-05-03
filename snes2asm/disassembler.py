@@ -259,6 +259,9 @@ class Disassembler:
 		self.fill_data_banks()
 
 	def add_decoder(self, decoder):
+		other_decoder = self.decoders.intersects(decoder.start, decoder.end)
+		if other_decoder != None:
+			raise ValueError("Decoder %s conflicts with %s between %06X-%06X" % (decoder.label, other_decoder.label, decoder.start, decoder.end))
 		self.decoders.add(decoder.start, decoder.end, decoder)
 
 	def run_decoders(self):
@@ -1595,7 +1598,7 @@ class Disassembler:
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
 class Decoder:
-	def __init__(self, label=None, start=0, end=0, file=None):
+	def __init__(self, label=None, start=0, end=0, file=False):
 		self.label = label
 		self.start = start
 		self.end = end
@@ -1605,14 +1608,20 @@ class Decoder:
 		return "%s%06x-%06x" % (self.__name__, self.start, self.end)
 
 	def decode(self, cart):
-		show_label = self.label != None
-		for y in range(self.start, self.end, 16):
-			line = '.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)])
-			if show_label:
-				yield (y, Instruction(line, preamble=self.label+":"))
-				show_label = False
-			else:
-				yield (y, Instruction(line))
+		if self.file != None:
+			show_label = self.label != None
+			for y in range(self.start, self.end, 16):
+				line = '.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)])
+				if show_label:
+					yield (y, Instruction(line, preamble=self.label+":"))
+					show_label = False
+				else:
+					yield (y, Instruction(line))
+		else:
+			yield (self.start, Instruction(".INCLUDE '%s.inc'" % self.label))
+
+	def file_output(self, cart):
+		pass
 
 class Headers(Decoder):
 	def __init__(self, start, end):
@@ -1620,6 +1629,13 @@ class Headers(Decoder):
 
 	def decode(self, cart):
 		yield (self.start, Instruction('; Auto-generated headers', preamble=self.label+":"))
+
+class BinaryDecoder(Decoder):
+	def __init__(self, label, start, end):
+		Decoder.__init__(self, label, start, end, True)
+
+	def file_output(self, cart):
+		yeild ("%s.inc" % self.label, cart[self.start : self.end] )
 
 class TextDecoder(Decoder):
 	def __init__(self, label=None, start=0, end=0, pack=None):
@@ -1641,6 +1657,21 @@ class TextDecoder(Decoder):
 				line = '.db "%s"' % ansi_escape(string)
 				yield (pos, Instruction(line, preamble=label+":"))
 				pos = pos + size
+
+class PaletteDecoder(Decoder):
+	def __init__(self, start, end, label=None):
+		Decoder.__init__(self, label, start, end)
+
+	def decode(self, cart):
+		pass
+
+class GraphicDecoder(Decoder):
+	def __init__(self, start, end, label=None, palette=None):
+		Decoder.__init__(self, label, start, end)
+
+	def decode(self, cart):
+		pass
+		
 
 class Instruction:
 	def __init__(self, code, preamble=None, comment=None):

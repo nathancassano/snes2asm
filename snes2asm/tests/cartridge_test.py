@@ -24,7 +24,6 @@ class CartridgeTest(unittest.TestCase):
 		self.assertEquals(0, self.cart.sram_size)
 		self.assertEquals(1, self.cart.country)
 		self.assertEquals(0, self.cart.license_code)
-		self.assertEquals(0, self.cart.rom_mask)
 		self.assertEquals(0xA2CB, self.cart.comp_check)
 		self.assertEquals(0x5D34, self.cart.check_sum)
 

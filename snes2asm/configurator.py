@@ -23,7 +23,10 @@ class Configurator:
 					decoder_class = self.decoders_enabled[decode_conf['type']]
 					del(decode_conf['type'])
 					decoder_inst = decoder_class(**decode_conf)
-					disasm.add_decoder(decoder_inst)
+					try:
+						disasm.add_decoder(decoder_inst)
+					except ValueError as error:
+						print "Could not add decoder: %s" % str(error)
 				else:
 					print "Unknown decoder type %s. Skipping." % decode_conf['type']
 

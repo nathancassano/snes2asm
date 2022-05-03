@@ -46,3 +46,15 @@ def exec_asm(options):
 
 	project = ProjectMaker(cart, disasm)
 	project.output(options.output_dir)
+
+def bmp2chr(argv=None):
+	parser = argparse.ArgumentParser( prog="bmp2chr", description='Convert indexed bitmap to CHR data', epilog='')
+	parser.add_argument('input', metavar='input.bmp', help="input bitmap file")
+
+	args = parser.parse_args(argv[1:])
+
+	if args.input:
+		print "TODO"
+	else:
+		parser.print_help()
+
