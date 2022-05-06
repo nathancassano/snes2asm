@@ -59,29 +59,38 @@ def Encode2bppTile(tile):
 		offset = line * 4
 		p1 = tile[offset+0] << 6 | tile[offset+1] << 4 | tile[offset+2] << 2 | tile[offset+3]
 		p2 = tile[offset+4] << 6 | tile[offset+5] << 4 | tile[offset+6] << 2 | tile[offset+7]
-		data[line], data[line+1] = Encode2Byte(p1, p2)
+		data[line+1], data[line] = Encode2Byte(p1, p2)
 	return data
 
 def Encode4bppTile(tile):
 	data = bytearray(32)
 	for line in xrange(0, 16, 2):
 		offset = line * 4
-		p1 = tile[offset+0] << 4 | tile[offset+1]
-		p2 = tile[offset+2] << 4 | tile[offset+3]
-		p3 = tile[offset+4] << 4 | tile[offset+5]
-		p4 = tile[offset+6] << 4 | tile[offset+7]
-		data[line], data[line+1] = Encode2Byte(p1, p2)
-		data[line+16], data[line+17] = Encode2Byte(p3, p4)
+		p1 = ((tile[offset+0] & 0x3) << 6) | ((tile[offset+1] & 0x3) << 4) | ((tile[offset+2] & 0x3) << 2) | (tile[offset+3] & 0x3)
+		p2 = ((tile[offset+0] & 0xC) << 4) | ((tile[offset+1] & 0xC) << 2) | (tile[offset+2] & 0xC) | ((tile[offset+3] & 0xC) >> 2)
+		p3 = (tile[offset+4] & 0x3) << 6 | (tile[offset+5] & 0x3) << 4 | (tile[offset+6] & 0x3) << 2 | tile[offset+7] & 0x3
+		p4 = (tile[offset+4] & 0xC) << 4 | (tile[offset+5] & 0xC) << 2 | (tile[offset+6] & 0xC) | (tile[offset+7] & 0xC) >> 2
+		data[line+1], data[line] = Encode2Byte(p1, p3)
+		data[line+17], data[line+16] = Encode2Byte(p2, p4)
 	return data
 
 def Encode8bppTile(tile):
 	data = bytearray(64)
 	for line in xrange(0, 16, 2):
 		offset = line * 4
-		data[line], data[line+1] = Encode2Byte(tile[offset+0], tile[offset+1])
-		data[line+16], data[line+17] = Encode2Byte(tile[offset+2], tile[offset+3])
-		data[line+32], data[line+33] = Encode2Byte(tile[offset+4], tile[offset+5])
-		data[line+48], data[line+49] = Encode2Byte(tile[offset+6], tile[offset+7])
+		p1 = (tile[offset+0] & 0x3) << 6 | (tile[offset+1] & 0x3) << 4 | (tile[offset+2] & 0x3) << 2 | tile[offset+3] & 0x3
+		p2 = (tile[offset+0] & 0xC) << 4 | (tile[offset+1] & 0xC) << 2 | (tile[offset+2] & 0xC)      | (tile[offset+3] & 0xC) >> 2
+		p3 = (tile[offset+4] & 0x3) << 6 | (tile[offset+5] & 0x3) << 4 | (tile[offset+6] & 0x3) << 2 | tile[offset+7] & 0x3
+		p4 = (tile[offset+4] & 0xC) << 4 | (tile[offset+5] & 0xC) << 2 | (tile[offset+6] & 0xC)      | (tile[offset+7] & 0xC) >> 2
+		data[line+1], data[line] = Encode2Byte(p1, p3)
+		data[line+17], data[line+16] = Encode2Byte(p2, p4)
+
+		p5 = (tile[offset+0] & 0x30) << 2 | (tile[offset+1] & 0x30)      | (tile[offset+2] & 0x30) >> 2 | (tile[offset+3] & 0x30) >> 4
+		p6 = (tile[offset+0] & 0xC0)      | (tile[offset+1] & 0xC0) >> 2 | (tile[offset+2] & 0xC0) >> 4 | (tile[offset+3] & 0xC0) >> 6
+		p7 = (tile[offset+4] & 0x30) << 2 | (tile[offset+5] & 0x30)      | (tile[offset+6] & 0x30) >> 2 | (tile[offset+7] & 0x30) >> 4
+		p8 = (tile[offset+4] & 0xC0)      | (tile[offset+5] & 0xC0) >> 2 | (tile[offset+6] & 0xC0) >> 4 | (tile[offset+7] & 0xC0) >> 6
+		data[line+33], data[line+32] = Encode2Byte(p5, p7)
+		data[line+49], data[line+48] = Encode2Byte(p6, p8)
 	return data
 
 def Decode2bppTile(data):
@@ -89,13 +98,13 @@ def Decode2bppTile(data):
 	for line in xrange(0, 16, 2):
 		# Single bitplane
 		a1, b1 = Decode2Byte(data[line], data[line+1])
-		tile.append(b1 & 0xC0 >> 6)
-		tile.append(b1 & 0x30 >> 4)
-		tile.append(b1 & 0x0C >> 2)
+		tile.append((b1 & 0xC0) >> 6)
+		tile.append((b1 & 0x30) >> 4)
+		tile.append((b1 & 0x0C) >> 2)
 		tile.append(b1 & 0x03)
-		tile.append(a1 & 0xC0 >> 6)
-		tile.append(a1 & 0x30 >> 4)
-		tile.append(a1 & 0x0C >> 2)
+		tile.append((a1 & 0xC0) >> 6)
+		tile.append((a1 & 0x30) >> 4)
+		tile.append((a1 & 0x0C) >> 2)
 		tile.append(a1 & 0x03)
 	return tile
 
@@ -110,7 +119,6 @@ def Decode4bppTile(data):
 		tile.append( (b1 & 0x30) >> 4 | (b2 & 0x30) >> 2 )
 		tile.append( (b1 & 0x0C) >> 2 | (b2 & 0x0C) )
 		tile.append( (b1 & 0x03)      | (b2 & 0x03) << 2 ) 
-
 		tile.append( (a1 & 0xC0) >> 6 | (a2 & 0xC0) >> 4)
 		tile.append( (a1 & 0x30) >> 4 | (a2 & 0x30) >> 2 )
 		tile.append( (a1 & 0x0C) >> 2 | (a2 & 0x0C) )
