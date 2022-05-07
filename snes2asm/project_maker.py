@@ -16,6 +16,15 @@ class ProjectMaker:
 		self.create_header(dir)
 		self.copy_files(dir)
 
+		# Write decoder files
+		for decoder in self.disasm.decoders.items():
+			for (file, content) in decoder.files:
+				filename = "%s/%s" % (dir, file)
+				f = open(filename, 'wb')
+				f.write(content)
+				f.close()
+
+		# Write main assembly code
 		filename = "%s/game.asm" % dir
 		f = open(filename, 'w')
 		f.write(self.disasm.assembly())

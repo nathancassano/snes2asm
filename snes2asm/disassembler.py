@@ -4,6 +4,8 @@ import bisect
 
 from snes2asm.cartridge import Cartridge
 from snes2asm.rangetree import RangeTree
+from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode2bppTile
+from snes2asm.bitmap import BitmapIndex
 
 InstructionSizes = [
 	2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 4, # x0
@@ -237,6 +239,7 @@ class Disassembler:
 		self.decoders = RangeTree()
 		self.add_decoder(Headers(self.cart.header,self.cart.header+80))
 		self.hex_comment = bool(self.options.hex)
+		self.files = {}
 
 	def run(self):
 		print "Disassembling..."
@@ -1598,30 +1601,27 @@ class Disassembler:
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
 class Decoder:
-	def __init__(self, label=None, start=0, end=0, file=False):
+	def __init__(self, label=None, start=0, end=0):
 		self.label = label
 		self.start = start
 		self.end = end
-		self.file = file
+		self.files = []
 
 	def name(self):
 		return "%s%06x-%06x" % (self.__name__, self.start, self.end)
 
 	def decode(self, cart):
-		if self.file != None:
-			show_label = self.label != None
-			for y in range(self.start, self.end, 16):
-				line = '.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)])
-				if show_label:
-					yield (y, Instruction(line, preamble=self.label+":"))
-					show_label = False
-				else:
-					yield (y, Instruction(line))
-		else:
-			yield (self.start, Instruction(".INCLUDE '%s.inc'" % self.label))
+		show_label = self.label != None
+		for y in range(self.start, self.end, 16):
+			line = '.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)])
+			if show_label:
+				yield (y, Instruction(line, preamble=self.label+":"))
+				show_label = False
+			else:
+				yield (y, Instruction(line))
 
-	def file_output(self, cart):
-		pass
+	def add_file(self, name, data):
+		self.files.append((name, data))
 
 class Headers(Decoder):
 	def __init__(self, start, end):
@@ -1632,10 +1632,14 @@ class Headers(Decoder):
 
 class BinaryDecoder(Decoder):
 	def __init__(self, label, start, end):
-		Decoder.__init__(self, label, start, end, True)
+		Decoder.__init__(self, label, start, end)
 
-	def file_output(self, cart):
-		yeild ("%s.inc" % self.label, cart[self.start : self.end] )
+	def decode(self, cart):
+		data = []
+		for y in range(self.start, self.end, 16):
+			data.append('.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)]))
+		self.add_file("%s.inc" % self.label, "\n".join(data))
+		yield (self.start, Instruction(".INCLUDE '%s.inc'" % self.label, preamble=self.label+":"))
 
 class TextDecoder(Decoder):
 	def __init__(self, label=None, start=0, end=0, pack=None):
@@ -1666,12 +1670,60 @@ class PaletteDecoder(Decoder):
 		pass
 
 class GraphicDecoder(Decoder):
-	def __init__(self, start, end, label=None, palette=None):
+	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None):
 		Decoder.__init__(self, label, start, end)
+		self.bit_depth = bit_depth
+		self.width = width
+
+		if self.width & 0x7 != 0:
+			raise ValueError("Tile value width must be a multiple of 8")
+
+		if self.bit_depth == 8:
+			self.tile_decoder = Decode8bppTile
+			self.tile_size = 64
+		elif self.bit_depth == 2:
+			self.tile_decoder = Decode2bppTile
+			self.tile_size = 16
+		else:
+			self.tile_decoder = Decode4bppTile
+			self.tile_size = 32
+
+		if (self.end - self.start) % self.tile_size != 0:
+			raise ValueError("Tile start and end (0x%06X-0x%06X) do not align with the %d-bit tile size" % (self.start, self.end, self.bit_depth))
+
+	def palette(self):
+		colors = 1 << self.bit_depth
+		return [ (x << 10 | x << 18 | x << 26) for x in xrange(0, colors ) ]
 
 	def decode(self, cart):
-		pass
-		
+		# Output chr file
+		file_name = "%s.chr" % self.label
+		self.add_file(file_name, bytearray(cart[self.start:self.end]))
+
+		# Output bitmap file
+		tile_count = (self.end - self.start) / self.tile_size
+		tiles_wide = self.width / 8
+		height = (tile_count / tiles_wide) * 8
+		if tile_count % tiles_wide != 0:
+			height = height + 8
+
+		bitmap = BitmapIndex(self.width, height, self.bit_depth, self.palette())
+
+		tile_index = 0
+		for i in xrange(self.start, self.end, self.tile_size):
+			tile = self.tile_decoder(cart[i:i+self.tile_size])
+
+			tile_x = (tile_index % tiles_wide) * 8
+			tile_y = (tile_index / tiles_wide) * 8
+			for y in xrange(0,8):
+				for x in xrange(0,8):
+					bitmap.setPixel(tile_x+x,tile_y+y, tile[y*8+x])
+			tile_index = tile_index + 1
+
+		self.add_file("%s.bmp" % self.label, bitmap.output())
+
+		# Make binary chr file include
+		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
 
 class Instruction:
 	def __init__(self, code, preamble=None, comment=None):

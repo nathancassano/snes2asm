@@ -1,4 +1,5 @@
 import struct
+from io import BytesIO
 
 class BitmapIndex():
 	def __init__(self, width, height, bits, palette):
@@ -33,7 +34,7 @@ class BitmapIndex():
 
 	def setPixel(self, x, y, index):
 		if x < 0 or y < 0 or x >= self._bcWidth or y >= self._bcHeight:
-			raise ValueError('Coords out of range')
+			raise ValueError('Coords (%d,%d) out of range' % (x,y))
 		if index < 0 or index > self._bcTotalColors:
 			raise ValueError('Color must be inside index range')
 
@@ -65,7 +66,7 @@ class BitmapIndex():
 
 	def getPixel(self, x, y):
 		if x < 0 or y < 0 or x >= self._bcWidth or y >= self._bcHeight:
-			raise ValueError('Coords out of range')
+			raise ValueError('Coords (%d,%d) out of range' % (x,y))
 		stride = (self._bcHeight - 1 - y) * self._paddedWidth + x
 		# 1-Bit
 		if self._bcBitCount == 1:
@@ -95,31 +96,38 @@ class BitmapIndex():
 
 		self._graphics = packedBytes
 
+	def output(self):
+		io = BytesIO()
+
+		# Writing BITMAPFILEHEADER
+		io.write(struct.pack('<HLHHL', 
+			self._bfType, 
+			self._bfSize, 
+			self._bfReserved1, 
+			self._bfReserved2, 
+			self._bfOffBits
+			))
+
+		# Writing BITMAPINFO
+		io.write(struct.pack('<LLLHHLLLLLL', 
+			self._bcSize, 
+			self._bcWidth, 
+			self._bcHeight, 
+			self._bcPlanes, 
+			self._bcBitCount,
+			0, 0, 0, 0, 
+			self._bcTotalColors, 
+			0
+			))
+		for color in self._palette:
+			io.write(struct.pack('<L', color))
+		io.write(self._graphics)
+		io.seek(0)
+		return io.read()
+
 	def write(self, file):
 		with open(file, 'wb') as f:
-			# Writing BITMAPFILEHEADER
-			f.write(struct.pack('<HLHHL', 
-				self._bfType, 
-				self._bfSize, 
-				self._bfReserved1, 
-				self._bfReserved2, 
-				self._bfOffBits
-				))
-
-			# Writing BITMAPINFO
-			f.write(struct.pack('<LLLHHLLLLLL', 
-				self._bcSize, 
-				self._bcWidth, 
-				self._bcHeight, 
-				self._bcPlanes, 
-				self._bcBitCount,
-				0, 0, 0, 0, 
-				self._bcTotalColors, 
-				0
-				))
-			for color in self._palette:
-				f.write(struct.pack('<L', color))
-			f.write(self._graphics)
+			f.write(self.output())
 
 	def __str__(self):
 		return "Bitmap width=%d height=%d bits=%d colors=%d" % (self._bcWidth, self._bcHeight, self._bcBitCount, self._bcTotalColors)

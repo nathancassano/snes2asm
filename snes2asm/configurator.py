@@ -1,12 +1,12 @@
 
-from snes2asm.disassembler import Decoder, TextDecoder
+from snes2asm.disassembler import Decoder, TextDecoder, GraphicDecoder
 
 import yaml
 
 class Configurator:
 	def __init__(self, file_path):
 		self.config = yaml.safe_load(file(file_path, 'r'))
-		self.decoders_enabled = {'data': Decoder, 'ascii': TextDecoder}
+		self.decoders_enabled = {'data': Decoder, 'ascii': TextDecoder, 'gfx': GraphicDecoder}
 		self._validate()
 
 	def _validate(self):
