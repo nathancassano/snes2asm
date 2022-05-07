@@ -1,13 +1,11 @@
 import unittest
 from snes2asm.tile import *
-import pdb
 
 class TileTest(unittest.TestCase):
 
 	def test_tile2bpp(self):
 		snes_tile_encoded = bytearray([0x00, 0x01, 0x01, 0x02, 0x03, 0x04, 0x07, 0x08, 0x0f, 0x10, 0x1f, 0x20, 0x3f, 0x40, 0xff, 0xff])	
 		snes_tile_decoded = Decode2bppTile(snes_tile_encoded)
-
 		self.assertEquals(snes_tile_encoded, Encode2bppTile(snes_tile_decoded))
 
 	def test_tile4bpp(self):
