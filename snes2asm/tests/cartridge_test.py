@@ -1,5 +1,6 @@
+# -*- coding: utf-8 -*-
+
 import unittest
-import pdb 
 from snes2asm.cartridge import Cartridge
 
 class CartridgeTest(unittest.TestCase):

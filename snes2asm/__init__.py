@@ -10,6 +10,7 @@ from snes2asm.disassembler import Disassembler
 from snes2asm.cartridge import Cartridge
 from snes2asm.project_maker import ProjectMaker
 from snes2asm.configurator import Configurator
+from snes2asm.decoder import Headers
 
 def main(argv=None):
 	parser = argparse.ArgumentParser( prog="snes2asm", description='Disassembles snes cartridges into practical projects', epilog='')
@@ -37,6 +38,7 @@ def exec_asm(options):
 	cart.open(options.input)
 
 	disasm = Disassembler(cart, options)
+	disasm.add_decoder(Headers(cart.header,cart.header+80))
 
 	if options.config:
 		configurator = Configurator(options.config)

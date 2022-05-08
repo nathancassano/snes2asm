@@ -9,11 +9,16 @@ decoders:
   start: 0x15ac9
   end: 0x15c2d
   pack: [[sound_test, 11],[sound_name,6],[sound_pan,3]]
+- type: palette
+  label: sprites1_pal
+  start: 0x2f940
+  end: 0x2f960
 - type: gfx
-  label: plumber
+  label: sprites1_gfx
   start: 0x2bc60
   end:   0x2c860
   bit_depth: 4
+  palette: sprites1_pal
 structs:
   enemy_object:
   - name: x

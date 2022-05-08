@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 
 # 0000-1111 = 0101-0101
 TileBitplaneDecodeLut = [
