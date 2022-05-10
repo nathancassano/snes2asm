@@ -9,7 +9,7 @@ class Decoder:
 		self.label = label
 		self.start = start
 		self.end = end
-		self.files = []
+		self.files = {}
 
 	def name(self):
 		return "%s%06x-%06x" % (self.__name__, self.start, self.end)
@@ -25,7 +25,7 @@ class Decoder:
 				yield (y, Instruction(line))
 
 	def add_file(self, name, data):
-		self.files.append((name, data))
+		self.files[name] = data
 
 class Headers(Decoder):
 	def __init__(self, start, end):
@@ -69,7 +69,7 @@ class TextDecoder(Decoder):
 class PaletteDecoder(Decoder):
 	def __init__(self, start, end, label=None):
 		Decoder.__init__(self, label, start, end)
-
+		self.colors = []
 		if (self.end - self.start) & 0x1 != 0:
 			raise ValueError("Palette start and end (0x%06X-0x%06X) do not align with 2-byte color entries" % (self.start, self.end))
 
@@ -80,8 +80,9 @@ class PaletteDecoder(Decoder):
 
 		lines = []
 		for i in xrange(self.start, self.end, 2):
-			bgr565  = cart[i] << 8 | cart[i+1]
-			rgbcolor = (bgr565 & 0xf800) >> 8 | (bgr565 & 0x7e0) << 5 | (bgr565 & 0x1f) << 18
+			bgr565 = cart[i] | cart[i+1] << 8
+			rgbcolor = ((bgr565 & 0x7c00) >> 7 | (bgr565 & 0x3e0) << 6 | (bgr565 & 0x1f) << 19)
+			self.colors.append(rgbcolor)
 			lines.append("#%06X" % rgbcolor)
 
 		self.add_file("%s.rgb" % self.label, "\n".join(lines) )
@@ -89,10 +90,12 @@ class PaletteDecoder(Decoder):
 		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
 
 class GraphicDecoder(Decoder):
-	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None):
+	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0):
 		Decoder.__init__(self, label, start, end)
 		self.bit_depth = bit_depth
 		self.width = width
+		self.palette = palette
+		self.palette_offset = palette_offset
 
 		if self.width & 0x7 != 0:
 			raise ValueError("Tile value width must be a multiple of 8")
@@ -110,9 +113,13 @@ class GraphicDecoder(Decoder):
 		if (self.end - self.start) % self.tile_size != 0:
 			raise ValueError("Tile start and end (0x%06X-0x%06X) do not align with the %d-bit tile size" % (self.start, self.end, self.bit_depth))
 
-	def palette(self):
-		colors = 1 << self.bit_depth
-		return [ (x << 10 | x << 18 | x << 2) for x in xrange(0, colors ) ]
+	def get_palette(self):
+		if self.palette != None:
+			return self.palette.colors[self.palette_offset:]
+		else:
+			# Gray scale palette
+			colors = 1 << self.bit_depth
+			return [ (x << 10 | x << 18 | x << 2) for x in xrange(0, colors ) ]
 
 	def decode(self, cart):
 		# Output chr file
@@ -126,7 +133,11 @@ class GraphicDecoder(Decoder):
 		if tile_count % tiles_wide != 0:
 			height = height + 8
 
-		bitmap = BitmapIndex(self.width, height, self.bit_depth, self.palette())
+		# If palette hasn't been decoded yet then decode now
+		if self.palette != None and len(self.palette.colors) == 0:
+			next(self.palette.decode(cart)):
+
+		bitmap = BitmapIndex(self.width, height, self.bit_depth, self.get_palette())
 
 		tile_index = 0
 		for i in xrange(self.start, self.end, self.tile_size):

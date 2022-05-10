@@ -20,7 +20,7 @@ class ProjectMaker:
 
 		# Write decoder files
 		for decoder in self.disasm.decoders.items():
-			for (file, content) in decoder.files:
+			for file, content in decoder.files.items():
 				filename = "%s/%s" % (dir, file)
 				f = open(filename, 'wb')
 				f.write(content)

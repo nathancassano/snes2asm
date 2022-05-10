@@ -29,7 +29,7 @@ class BitmapIndex():
 		self.clear()
 
 	def _graphicSize(self):
-		return (self._bcBitCount*self._paddedWidth*self._bcHeight)/8
+		return max((self._bcBitCount*self._paddedWidth*self._bcHeight)/8, self._paddedWidth)
 
 	def clear(self):
 		self._graphics = bytearray(self._graphicSize())
@@ -38,7 +38,7 @@ class BitmapIndex():
 		if x < 0 or y < 0 or x >= self._bcWidth or y >= self._bcHeight:
 			raise ValueError('Coords (%d,%d) out of range' % (x,y))
 		if index < 0 or index > self._bcTotalColors:
-			raise ValueError('Color must be inside index range')
+			raise ValueError('Color value %d must be inside index range of %d' % (index, self._bcTotalColors))
 
 		stride = (self._bcHeight - 1 - y) * self._paddedWidth + x
 		# 1-Bit

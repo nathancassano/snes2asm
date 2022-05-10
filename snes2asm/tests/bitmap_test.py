@@ -24,5 +24,10 @@ class TileTest(unittest.TestCase):
 		b.setPixel(1,2,3)
 		self.assertEquals(3, b.getPixel(1,2))
 
+	def test_createbmp(self):
+		b = BitmapIndex(8,8,4,[0xFF00, 0, 0, 0]*4)
+		b.setPixel(0,0,1)
+		b.output()
+
 if __name__ == '__main__':
     unittest.main()
