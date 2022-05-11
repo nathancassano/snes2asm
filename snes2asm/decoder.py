@@ -123,7 +123,7 @@ class GraphicDecoder(Decoder):
 
 	def decode(self, cart):
 		# Output chr file
-		file_name = "%s.chr" % self.label
+		file_name = "%s_%dbpp.chr" % (self.label, self.bit_depth)
 		self.add_file(file_name, bytearray(cart[self.start:self.end]))
 
 		# Output bitmap file
@@ -135,7 +135,7 @@ class GraphicDecoder(Decoder):
 
 		# If palette hasn't been decoded yet then decode now
 		if self.palette != None and len(self.palette.colors) == 0:
-			next(self.palette.decode(cart)):
+			next(self.palette.decode(cart))
 
 		bitmap = BitmapIndex(self.width, height, self.bit_depth, self.get_palette())
 
@@ -150,10 +150,15 @@ class GraphicDecoder(Decoder):
 					bitmap.setPixel(tile_x+x,tile_y+y, tile[y*8+x])
 			tile_index = tile_index + 1
 
-		self.add_file("%s.bmp" % self.label, bitmap.output())
+		self.add_file("%s_%dbpp.bmp" % (self.label, self.bit_depth), bitmap.output())
 
 		# Make binary chr file include
 		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
+
+class TileMapDecoder(Decoder):
+	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0):
+		Decoder.__init__(self, label, start, end)
+
 
 _ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}
 

@@ -3,6 +3,7 @@
 import os
 import shutil
 from string import Template
+from snes2asm import template as template_path
 
 class ProjectMaker:
 
@@ -35,19 +36,19 @@ class ProjectMaker:
 	def copy_files(self, dir):
 		files = ['Makefile','clean.bat','compile.bat', 'snes.asm', 'main.s', 'linkfile']
 		for f in files:
-			shutil.copyfile("snes2asm/template/" + f, "%s/%s" % (dir, f) )
+			shutil.copyfile("%s/%s" % (template_path.__path__[0], f), "%s/%s" % (dir, f) )
 
 	def create_header(self, dir):
-		f = open('snes2asm/template/hdr.asm')
+		f = open("%s/hdr.asm" % template_path.__path__[0])
 		hdr_temp = f.read()
 		f.close()
-		template = PercentTemplate(hdr_temp)
+		temp = PercentTemplate(hdr_temp)
 		rom_speed = 'FASTROM' if self.cart.fastrom else 'SLOWROM'
 		if self.cart.extended:
 			rom_map = 'EXHIROM' if self.cart.hirom else 'EXLOROM ; unsupported map type'
 		else:
 			rom_map = 'HIROM' if self.cart.hirom else 'LOROM'
-		hdr = template.substitute(
+		hdr = temp.substitute(
 			title=self.cart.title[0:21].ljust(21),
 			bank_size="%06X" % self.cart.bank_size(),
 			slot_size="0" if self.cart.hirom else "8000",

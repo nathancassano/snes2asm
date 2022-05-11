@@ -27,7 +27,6 @@ class RangeTree():
 		path = []
 		stack = [self.root]
 		while len(stack) != 0:
-
 			node = stack.pop()
 			if node not in path:
 				path.append(node)
@@ -118,7 +117,10 @@ class RangeNode():
 		return self.start <= index and index < self.end
 
 	def intersects(self, start, end):
-		return self.contains(start) or self.contains(end)
+		return min(self.end, end) - max(self.start, start) > 0
+
+	def width(self):
+		return self.end - self.start
 
 	def size(self):
 		c = 1
@@ -129,10 +131,9 @@ class RangeNode():
 		return c
 
 	def __str__(self):
-		s = "%s %d-%d [%d]\n" % (str(self.val), self.start, self.end, self.size()) if self.val else "R %d-%d [%d]\n" % (self.start, self.end, self.size())
-
-		if self.left:
-			s = s + "->" + str(self.left)
-		if self.right:
-			s = s + "->" + str(self.right)
+		if self.val:
+			s = "N %x-%x => %s" % (self.start, self.end, str(self.val))
+		else:
+			s = "{%x-%x (%x)\n" % (self.start, self.end, self.size())
+			s = s + "[%s]\n[%s] }" % (str(self.left), str(self.right))
 		return s

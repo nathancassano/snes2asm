@@ -15,6 +15,11 @@ class Configurator:
 
 	def apply(self, disasm):
 
+		if self.config.has_key('banks'):
+			banks = self.config['banks']
+			if type(banks) == list:
+				disasm.options.banks = banks
+
 		if self.config.has_key('structs'):
 			pass
 

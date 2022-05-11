@@ -252,10 +252,9 @@ class Disassembler:
 					self.decode_bank(b)
 				else:
 					print("Invalid bank %d" % b)
+			self.fill_data_banks()
 		else:
 			self.auto_run()
-
-		self.fill_data_banks()
 
 	def add_decoder(self, decoder):
 		other_decoder = self.decoders.intersects(decoder.start, decoder.end)
@@ -368,7 +367,7 @@ class Disassembler:
 			if decoder:
 				# Check if the last opcode intersected with decoder
 				if self.pos < decoder.start:
-					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[self.pos : decoder.start - 1]), comment = 'Opcode overrunning decoder')
+					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[self.pos : decoder.start]), comment = 'Opcode overrunning decoder')
 				elif self.pos + op_size < decoder.end:
 					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[decoder.end + 1: self.pos + op_size]), comment = 'Opcode overrunning decoder')
 				self.pos = decoder.end
@@ -407,16 +406,28 @@ class Disassembler:
 
 	def fill_data_banks(self):
 		for bank in range(0, self.cart.bank_count()):
-			addr = bank * self.cart.bank_size()
-			if self.code.get(addr) == None:
-				self.make_data_bank(bank)
+			if bank in self.options.banks:
+				continue
+			self.pos = bank * self.cart.bank_size()
+			end = self.pos + self.cart.bank_size()
 
-	def make_data_bank(self, bank):
-		start = bank * self.cart.bank_size()
-		end = start + self.cart.bank_size()
+			while self.pos < end:
+				decoder = self.decoders.intersects(self.pos, end)
+				if decoder != None:
+					if self.pos < decoder.start:
+						self.make_data(self.pos, decoder.start)
+					self.pos = decoder.end
+				else:
+					self.make_data(self.pos, end)
+					break
 
+	def make_data(self, start, end):
 		for y in range(start, end, 16):
 			line = '.db ' + ', '.join(("$%02X" % x) for x in self.cart[y : y+16])
+			self.code[y] = self.ins(line)
+		remaining = (end - start) % 16
+		if remaining != 0:
+			line = '.db ' + ', '.join(("$%02X" % x) for x in self.cart[end - remaining : end])
 			self.code[y] = self.ins(line)
 
 	def assembly(self):
@@ -892,8 +903,12 @@ class Disassembler:
 		if index == -1 or not self.valid_label(index):
 			return self.ins("%s $%06X.l" % (op, pipe))
 
+		if self.cart.hirom:
+			pipe_bank = 0xFF0000 & pipe
+		else:
+			pipe_bank = 0xFF0000 & ((pipe & 0x7F0000) >> 1)
+
 		# If jumping to a mirrored bank
-		pipe_bank = 0xFF0000 & pipe
 		if pipe_bank != 0xFF0000 & index:
 			# Set placeholder for label
 			self.label_name(index)
@@ -906,7 +921,7 @@ class Disassembler:
 			if self.cart.hirom:
 				label = pipe
 			else:
-				label = pipe_bank | (0xFFFF & index)
+				label = pipe_bank | (0x7FFF & index)
 
 			return self.ins("%s L%06X.l" % (op, label))
 		else:

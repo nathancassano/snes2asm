@@ -20,6 +20,7 @@ class RangeTreeTest(unittest.TestCase):
 		self.assertEquals('M', self.tree.find(10) )
 		self.assertEquals('C', self.tree.find(31) )
 		self.assertEquals(None, self.tree.find(41) )
+		self.assertEquals('B', self.tree.intersects(17, 26))
 
 		self.assertEquals(['A','M','B','C'], self.tree.items() )
 

@@ -1,4 +1,5 @@
 ---
+banks: []
 decoders:
 - type: data
   label: gradient1
