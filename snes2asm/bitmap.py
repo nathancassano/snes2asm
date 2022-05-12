@@ -142,7 +142,7 @@ class BitmapIndex():
 		header = struct.unpack('<HLHHLLLLHHLLLLLL', file_data[0:54])
 
 		if header[0] != 19778:
-			raise ValueError("Not a bitmap file")
+			raise ValueError("The file %s is not a bitmap" % file_name)
 
 		width = header[6]
 		height = header[7]
