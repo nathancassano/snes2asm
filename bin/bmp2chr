@@ -4,4 +4,4 @@ import sys
 from snes2asm import bmp2chr
 
 if __name__ == '__main__':
-    bmp2chr(sys.argv)
+    sys.exit(bmp2chr(sys.argv))

@@ -905,13 +905,14 @@ class Disassembler:
 		if index == -1 or not self.valid_label(index):
 			return self.ins("%s $%06X.l" % (op, pipe))
 
+		pipe_bank = 0xFF0000 & pipe
 		if self.cart.hirom:
-			pipe_bank = 0xFF0000 & pipe
+			shadow = pipe_bank != 0xFF0000 & index
 		else:
-			pipe_bank = 0xFF0000 & ((pipe & 0x7F0000) >> 1)
+			shadow = (0xFF8000 & (pipe >> 1)) != 0xFF8000 & index
 
 		# If jumping to a mirrored bank
-		if pipe_bank != 0xFF0000 & index:
+		if shadow:
 			# Set placeholder for label
 			self.label_name(index)
 			# Track list of banks at this index
@@ -923,7 +924,7 @@ class Disassembler:
 			if self.cart.hirom:
 				label = pipe
 			else:
-				label = pipe_bank | (0x7FFF & index)
+				label = pipe_bank | (0xFFFF & index)
 
 			return self.ins("%s L%06X.l" % (op, label))
 		else:
