@@ -14,18 +14,16 @@ class BitmapIndex():
 		self._bcHeight = height
 		self._bcPlanes = 1
 		self._bcBitCount = bits
-		self._bcTotalColors = len(palette)
 		self._paddedWidth = self._bcWidth if (self._bcWidth * self._bcBitCount) / 8 & 0x3 == 0 else (self._bcWidth & ~0x3) + 4
 
 		self._bfSize = 54 + self._graphicSize() + len(palette)*4
 
-		if len(palette) > self._bcTotalColors:
-			raise ValueError('Palette must be less than %d entries long' % self._bcTotalColors)
-
 		if bits not in [1,2,4,8]:
 			raise ValueError('Invalid index color bits')
 
-		self._palette = palette
+		colors = 1 << self._bcBitCount
+		self._palette = palette[0:colors]
+		self._bcTotalColors = len(self._palette)
 		self.clear()
 
 	def _graphicSize(self):
