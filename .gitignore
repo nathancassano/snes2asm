@@ -3,3 +3,4 @@ __pycache__/
 *$py.class
 .Python
 *.swp
+.DS_Store

@@ -11,6 +11,8 @@ from snes2asm.cartridge import Cartridge
 from snes2asm.project_maker import ProjectMaker
 from snes2asm.configurator import Configurator
 from snes2asm.decoder import Headers
+from snes2asm.tile import Encode8bppTile, Encode4bppTile, Encode2bppTile
+from snes2asm.bitmap import BitmapIndex
 
 def main(argv=None):
 	parser = argparse.ArgumentParser( prog="snes2asm", description='Disassembles snes cartridges into practical projects', epilog='')
@@ -50,13 +52,70 @@ def exec_asm(options):
 	project.output(options.output_dir)
 
 def bmp2chr(argv=None):
-	parser = argparse.ArgumentParser( prog="bmp2chr", description='Convert indexed bitmap to CHR data', epilog='')
+	parser = argparse.ArgumentParser( prog="bmp2chr", description='Convert an indexed bitmap to SNES CHR data', epilog='')
 	parser.add_argument('input', metavar='input.bmp', help="input bitmap file")
-
+	parser.add_argument('-o', '--output', required=True, default=None, help="File path to output *.chr")
+	parser.add_argument('-b2', '--b2pp', action='store_true', default=False, help="4 colors graphic output")
+	parser.add_argument('-b4', '--b4pp', action='store_true', default=True, help="16 colors graphic output")
+	parser.add_argument('-b8', '--b8pp', action='store_true', default=False, help="256 colors graphic output")
+	parser.add_argument('-p', '--palette', action='store_true', default=False, help="Output color *.pal file")
+	parser.add_argument('-m', '--maxsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
 	args = parser.parse_args(argv[1:])
 
 	if args.input:
-		print "TODO"
+		try:
+			b = BitmapIndex.read(args.input)
+		except Exception as e:
+			print "Error: %s" % str(e)
+			return -1
+
+		if args.b2pp:
+			encode = Encode2bppTile
+			depth = 2
+		elif args.b8pp:
+			encode = Encode8bppTile
+			depth = 8
+		else:
+			encode = Encode4bppTile
+			depth = 4
+
+		if depth != b._bcBitCount:
+			print "Error: Bitmap file %s does not have a bit depth of %d" % (args.input, depth)
+			return -1
+
+		if b._bcWidth % 8 != 0 or b._bcHeight % 8 != 0:
+			print "Error: Bitmap file %s does not have multiple tile dimensions of 8x8" % args.input
+			return -1
+
+		# For odd shaped bitmaps match the number of tiles in the destination chr file by limiting the size
+		if os.path.isfile(args.output) and not args.maxsize:
+			max_size = os.path.getsize(args.output)
+		else:
+			max_size = b._bcBitCount * b._bcWidth * b._bcHeight
+
+		try:
+			chr_fp = open(args.output, "wb")
+		except Exception as e:
+			print "Error: %s" % str(e)
+			return -1
+
+		# Write tile data
+		running = True
+		for ty in xrange(0, b._bcHeight, 8):
+			for tx in xrange(0, b._bcWidth, 8):
+				tile = bytearray()
+				for y in xrange(ty, ty+8):
+					for x in xrange(tx, tx+8):
+						tile.append(b.getPixel(x, y))
+				chr_fp.write(encode(tile))
+				if chr_fp.tell() >= max_size:
+					running = False
+					break
+
+			if not running:
+				break
+		chr_fp.close()
 	else:
 		parser.print_help()
+	return 0
 
