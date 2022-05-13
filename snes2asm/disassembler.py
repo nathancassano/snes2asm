@@ -236,6 +236,7 @@ class Disassembler:
 		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
 		self.hex_comment = bool(self.options.hex)
+		self.code_banks = []
 
 	def run(self):
 		print "Disassembling..."
@@ -247,7 +248,8 @@ class Disassembler:
 		self.mark_labels()
 
 		if self.options.banks:
-			for b in self.options.banks:
+			self.code_banks = self.options.banks
+			for b in self.code_banks:
 				if b < self.cart.bank_count():
 					self.decode_bank(b)
 				else:
@@ -302,7 +304,8 @@ class Disassembler:
 		# TODO: Process first bank then banks with most labels
 
 		for bank in xrange(0, self.cart.bank_count()):
-			if len(self.options.banks) > 0 and bank not in self.options.banks:
+			# Ignore non-code banks
+			if len(self.code_banks) > 0 and bank not in self.code_banks:
 				continue
 			self.pos = bank * self.cart.bank_size()
 			end = self.pos + self.cart.bank_size()
@@ -408,7 +411,7 @@ class Disassembler:
 
 	def fill_data_banks(self):
 		for bank in range(0, self.cart.bank_count()):
-			if bank in self.options.banks:
+			if bank in self.code_banks:
 				continue
 			self.pos = bank * self.cart.bank_size()
 			end = self.pos + self.cart.bank_size()

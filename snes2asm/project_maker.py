@@ -34,7 +34,7 @@ class ProjectMaker:
 		f.close()
 
 	def copy_files(self, dir):
-		files = ['Makefile','clean.bat','compile.bat', 'snes.asm', 'main.s', 'linkfile']
+		files = ['Makefile','snes.asm', 'main.s', 'linkfile']
 		for f in files:
 			shutil.copyfile("%s/%s" % (template_path.__path__[0], f), "%s/%s" % (dir, f) )
 

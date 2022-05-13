@@ -6,6 +6,7 @@
 
 .ROMBANKSIZE $%bank_size		; Every ROM bank is 32 KBytes in size
 .ROMBANKS %rom_banks			; Tell WLA how many ROM banks we want
+.EMPTYFILL $FF
 
 .SNESHEADER
   ID "SNES"						; 1-4 letter string, just leave it as "SNES"
