@@ -55,6 +55,7 @@ class ProjectMaker:
 			rom_banks=len(self.cart.data) / self.cart.bank_size(),
 			rom_speed=rom_speed,
 			rom_map=rom_map,
+			game_code=self.cart.game_code,
 			cart_type="%02X" % self.cart.cart_type,
 			rom_size="%02X" % self.cart.rom_size,
 			sram_size="%02X" % self.cart.sram_size,

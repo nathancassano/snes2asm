@@ -4,12 +4,12 @@
   SLOT 0 $%slot_size
 .ENDME  
 
-.ROMBANKSIZE $%bank_size		; Every ROM bank is 32 KBytes in size
-.ROMBANKS %rom_banks			; Tell WLA how many ROM banks we want
+.ROMBANKSIZE $%bank_size
+.ROMBANKS %rom_banks
 .EMPTYFILL $FF
 
 .SNESHEADER
-  ID "SNES"						; 1-4 letter string, just leave it as "SNES"
+  ID "%game_code"				; 1-4 letter string
 
   NAME "%title"  ; Program Title - can't be over 21 bytes,
   ;    "123456789012345678901"  ; use spaces for unused bytes of the name.
