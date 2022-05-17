@@ -247,8 +247,7 @@ class Disassembler:
 
 		self.mark_labels()
 
-		if self.options.banks:
-			self.code_banks = self.options.banks
+		if self.code_banks:
 			for b in self.code_banks:
 				if b < self.cart.bank_count():
 					self.decode_bank(b)
@@ -369,15 +368,22 @@ class Disassembler:
 
 			# If intersects decoder
 			decoder = self.decoders.intersects(self.pos, self.pos + op_size)
+
 			if decoder:
 				# Check if the last opcode intersected with decoder
 				if self.pos < decoder.start:
 					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[self.pos : decoder.start]), comment = 'Opcode overrunning decoder')
-				elif self.pos + op_size < decoder.end:
-					self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[decoder.end + 1: self.pos + op_size]), comment = 'Opcode overrunning decoder')
-				self.pos = decoder.end
+					self.pos = decoder.end
+				elif self.pos + op_size > decoder.end:
+					data_end = self.pos + op_size
+					if data_end > end:
+						data_end = end
+					if decoder.end + 1 < data_end:
+						self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[decoder.end + 1: data_end]), comment = 'Opcode overrunning decoder 2')
+					self.pos = data_end
+				else:
+					self.pos = decoder.end
 				continue
-
 			# If opcode overruns bank boundry
 			elif (self.cart.address(self.pos) & 0xFFFF) + op_size > 0xFFFF:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode %02X overrunning bank boundry at %06X. Skipping." % (op, self.pos))
@@ -387,7 +393,7 @@ class Disassembler:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode overrunning section")
 				self.pos = self.pos + 1
 				continue
-			
+
 			# Decode op codes	
 			func = getattr(self, 'op%02X' % op)
 			if not func:
