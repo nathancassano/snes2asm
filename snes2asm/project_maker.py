@@ -67,11 +67,13 @@ class ProjectMaker:
 			nvec_abort=self.get_vector(self.cart.nvec_abort),
 			nvec_nmi=self.get_vector(self.cart.nvec_nmi),
 			nvec_irq=self.get_vector(self.cart.nvec_irq),
+			nvec_reset=self.get_vector(self.cart.nvec_reset),
 			evec_cop=self.get_vector(self.cart.evec_cop),
 			evec_abort=self.get_vector(self.cart.evec_abort),
 			evec_nmi=self.get_vector(self.cart.evec_nmi),
 			evec_reset=self.get_vector(self.cart.evec_reset),
-			evec_irq=self.get_vector(self.cart.evec_irq)
+			evec_irq=self.get_vector(self.cart.evec_irq),
+			evec_unused2=self.get_vector(self.cart.evec_unused2)
 		)
 		filename = "%s/hdr.asm" % dir
 		f = open(filename, 'w')

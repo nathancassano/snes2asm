@@ -64,7 +64,7 @@ class Cartridge:
 			self.fastrom = False
 		else:
 			# Auto-detect
-			self.fastrom = (self[0xFFD5 if self.hirom else 0x7FD5] & 0x30) != 0
+			self.fastrom = (self[0xFFD5 if self.hirom else 0x7FD5] & 0x30) == 0x30
 
 		self.header = self.header + (0x0ffb0 if self.hirom else 0x07fb0)
 

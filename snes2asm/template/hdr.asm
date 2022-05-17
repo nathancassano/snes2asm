@@ -61,6 +61,7 @@
   ABORT %nvec_abort
   NMI %nvec_nmi
   IRQ %nvec_irq
+  UNUSED %nvec_reset
 .ENDNATIVEVECTOR
 
 .SNESEMUVECTOR                  ; Define Emulation Mode interrupt vector table
@@ -69,4 +70,5 @@
   NMI %evec_nmi
   RESET %evec_reset              ; where execution starts
   IRQBRK %evec_irq
+  UNUSED %evec_unused2
 .ENDEMUVECTOR
