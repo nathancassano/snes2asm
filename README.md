@@ -103,8 +103,8 @@ Set of value key pairs which maps a code address to a named label.
 | **draw_oam:** | 0x13983 |
 
 ### memory:
-Set of value key pairs which maps a code address to a named label.
-| Label | Memory Address
+Set of value key pairs which maps a memory address to a named symbol.
+| Symbol | Memory Address
 |--|--|
 | **health:** | 0x701011 |
 | **lives:** | 0xDAA7 |

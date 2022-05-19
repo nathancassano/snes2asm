@@ -236,6 +236,7 @@ class Disassembler:
 		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
 		self.hex_comment = bool(self.options.hex)
+		self.no_label = bool(self.options.nolabel)
 		self.code_banks = []
 
 	def run(self):
@@ -461,7 +462,7 @@ class Disassembler:
 				code.append(".ENDS\n\n.BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
 
 			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
-				if addr in self.labels:
+				if not self.no_label and addr in self.labels:
 					# Bank aliases
 					if addr in self.label_bank_aliases:
 						bank_set = self.label_bank_aliases[addr]
@@ -900,7 +901,7 @@ class Disassembler:
 				return self.ins("%s $%04X.w" % (op, pipe))
 			else:
 				address = (self.pos & 0xFF0000) | (pipe - 0x8000)
-		if self.valid_label(address):
+		if self.valid_label(address) and not self.no_label:
 			return self.ins("%s %s.w" % (op, self.label_name(address)))
 		else:
 			return self.ins("%s $%04X.w" % (op, pipe))
@@ -911,7 +912,7 @@ class Disassembler:
 		index = self.cart.index(pipe)
 
 		# Bad address
-		if index == -1 or not self.valid_label(index):
+		if index == -1 or not self.valid_label(index) or self.no_label:
 			return self.ins("%s $%06X.l" % (op, pipe))
 
 		pipe_bank = 0xFF0000 & pipe
@@ -1595,7 +1596,10 @@ class Disassembler:
 
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
 		if self.valid_label(address):
-			return self.ins("%s %s.b" % (ins, self.label_name(address)))
+			if self.no_label:
+				return self.ins("%s %3d.b" % (ins, val))
+			else:
+				return self.ins("%s %s.b" % (ins, self.label_name(address)))
 		else:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (ins, address))
 
@@ -1612,7 +1616,10 @@ class Disassembler:
 
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
 		if self.valid_label(address):
-			return self.ins("%s %s.w" % (ins, self.label_name(address)))
+			if self.no_label:
+				return self.ins("%s $%04X.w" % (ins, val))
+			else:
+				return self.ins("%s %s.w" % (ins, self.label_name(address)))
 		else:
 			return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="Invalid branch target (%s L%06X)" % (ins, address))
 
