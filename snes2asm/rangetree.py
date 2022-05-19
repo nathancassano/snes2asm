@@ -82,7 +82,7 @@ class RangeTree():
 		elif node.right.intersects(new_node.start, new_node.end):
 			self._add_inner(node.right, new_node)
 		else:
-			left = node.left if node.left.size() <= node.right.size() else node.right
+			left = node.left.size() <= node.right.size()
 			if left:
 				self._split_node(node.left, node.start, new_node.end, new_node, False)
 			else:
