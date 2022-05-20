@@ -46,7 +46,11 @@ def exec_asm(options):
 
 	if options.config:
 		configurator = Configurator(options.config)
-		configurator.apply(disasm)
+		try:
+			configurator.apply(disasm)
+		except ValueError as e:
+			print "Error: %s" % str(e)
+			sys.exit(-1)
 
 	disasm.run()
 

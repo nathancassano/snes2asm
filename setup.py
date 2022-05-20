@@ -16,7 +16,7 @@ setup(
     author="Nathan Cassano",
     license="Apache 2",
     packages=find_packages(exclude=["*.tests", "*.tests.*", "examples"]),
-    scripts=['bin/snes2asm'],
+    scripts=['bin/snes2asm','bin/bmp2chr'],
     install_requires=['PyYAML'],
     classifiers=[
         'Development Status :: 3 - Alpha',

@@ -73,6 +73,9 @@ class PaletteDecoder(Decoder):
 		if (self.end - self.start) & 0x1 != 0:
 			raise ValueError("Palette start and end (0x%06X-0x%06X) do not align with 2-byte color entries" % (self.start, self.end))
 
+	def colorCount(self):
+		return (self.end - self.start) / 2
+
 	def decode(self, cart):
 		# Output pal file
 		file_name = "%s.pal" % self.label
@@ -97,6 +100,10 @@ class GraphicDecoder(Decoder):
 		self.palette = palette
 		self.palette_offset = palette_offset
 
+		if self.palette != None:
+			if (1 << self.bit_depth) > self.palette.colorCount() - self.palette_offset:
+				raise ValueError("Palette %s does not provide enough colors for %d-bit graphic %s" % (self.palette.label, self.bit_depth, self.label))
+
 		if self.width & 0x7 != 0:
 			raise ValueError("Tile value width must be a multiple of 8")
 
@@ -118,8 +125,8 @@ class GraphicDecoder(Decoder):
 			return self.palette.colors[self.palette_offset:]
 		else:
 			# Gray scale palette
-			colors = 1 << self.bit_depth
-			return [ (x << 10 | x << 18 | x << 2) for x in xrange(0, colors ) ]
+			step = 1 << (8 - self.bit_depth) 
+			return [ (x << 10 | x << 18 | x << 2) for x in xrange(0, 256, step) ]
 
 	def decode(self, cart):
 		# Output chr file

@@ -449,7 +449,7 @@ class Disassembler:
 		self.code.sort_keys()
 
 		if self.variables:
-			for index, variable in self.variables.items():
+			for variable, index in sorted((v,k) for (k,v) in self.variables.items()):
 				code.append(".define %s $%x\n" % (variable, index))
 			code.append("\n")
 
@@ -1236,15 +1236,15 @@ class Disassembler:
 
 	# RTI
 	def op40(self):
-		return self.ins("rti")
+		return InstructionReturn("rti")
 
 	# RTL
 	def op6B(self):
-		return self.ins("rtl")
+		return InstructionReturn("rtl")
 
 	# RTS
 	def op60(self):
-		return self.ins("rts")
+		return InstructionReturn("rts")
 
 	# SBC
 	def opE9(self):
@@ -1520,7 +1520,7 @@ class Disassembler:
 	def abs_ind_y(self):
 		address = self.pipe16()
 		if self.variables.has_key(address):
-			return " $%04X.w,Y" % self.variables[address]
+			return " %s.w,Y" % self.variables[address]
 		else:
 			return " $%04X.w,Y" % address
 
@@ -1643,6 +1643,10 @@ class Instruction:
 
 	def __str__(self):
 		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "\t\t; " + self.comment if self.comment else "")
+
+class InstructionReturn(Instruction):
+	def __str__(self):
+		return Instruction.__str__(self) + "\n"
 
 class OrderedDictRange(OrderedDict):
 
