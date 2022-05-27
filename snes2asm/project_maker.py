@@ -19,6 +19,12 @@ class ProjectMaker:
 		self.create_header(dir)
 		self.copy_files(dir)
 
+		# Write main assembly code
+		filename = "%s/game.asm" % dir
+		f = open(filename, 'w')
+		f.write(self.disasm.assembly().encode('utf-8'))
+		f.close()
+
 		# Write decoder files
 		for decoder in self.disasm.decoders.items():
 			for file, content in decoder.files.items():
@@ -27,11 +33,13 @@ class ProjectMaker:
 				f.write(content)
 				f.close()
 
-		# Write main assembly code
-		filename = "%s/game.asm" % dir
-		f = open(filename, 'w')
-		f.write(self.disasm.assembly())
-		f.close()
+		# Write support decoder files
+		for decoder in self.disasm.support_decoders:
+			for file, content in decoder.files.items():
+				filename = "%s/%s" % (dir, file)
+				f = open(filename, 'wb')
+				f.write(content)
+				f.close()
 
 	def copy_files(self, dir):
 		files = ['Makefile','snes.asm', 'main.s', 'linkfile']

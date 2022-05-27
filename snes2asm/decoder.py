@@ -24,6 +24,9 @@ class Decoder:
 			else:
 				yield (y, Instruction(line))
 
+	def no_data(self):
+		return self.start == self.end
+
 	def add_file(self, name, data):
 		self.files[name] = data
 
@@ -39,32 +42,50 @@ class BinaryDecoder(Decoder):
 		Decoder.__init__(self, label, start, end)
 
 	def decode(self, cart):
-		data = []
-		for y in range(self.start, self.end, 16):
-			data.append('.db ' + ', '.join(("$%02X" % x) for x in cart[y : min(y+16, self.end)]))
-		self.add_file("%s.inc" % self.label, "\n".join(data))
-		yield (self.start, Instruction(".INCLUDE \"%s.inc\"" % self.label, preamble=self.label+":"))
+		self.add_file("%s.bin" % self.label, bytearray(cart[self.start:self.end]))
+		yield (self.start, Instruction(".INCBIN \"%s.bin\"" % self.label, preamble=self.label+":"))
 
 class TextDecoder(Decoder):
-	def __init__(self, label=None, start=0, end=0, pack=None):
+	def __init__(self, label, start, end=0, pack=None, translation=None):
+		# Calculate end from pack
+		if end == 0 and pack != None:
+			end = start + sum([x[1] for x in pack])
 		Decoder.__init__(self, label, start, end)
+		self.translation = translation
 		self.pack = pack
 		if self.pack != None:
 			if type(self.pack) is not list:
 				raise ValueError("TextDecoder: pack parameter is not an array")
 
 	def decode(self, cart):
-		if self.pack == None:
-			string = ''.join( chr(x) for x in cart[self.start : self.end])
-			line = '.db "%s"' % ansi_escape(string)
-			yield (self.start, Instruction(line, preamble=self.label+":"))
-		else:
+		if self.pack:
 			pos = self.start
 			for (label, size) in self.pack:
-				string = ''.join( chr(x) for x in cart[pos : pos + size])
-				line = '.db "%s"' % ansi_escape(string)
-				yield (pos, Instruction(line, preamble=label+":"))
-				pos = pos + size
+				end = pos + size
+				output = self.text(cart[pos:end])
+				if self.translation:
+					yield (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label+":"))
+				else:
+					yield (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label+":"))
+				pos = end
+		else:
+			output = self.text(cart[self.start:self.end])
+			if self.translation:
+				yield (self.start, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=self.label+":"))
+			else:
+				yield (self.start, Instruction('.db "%s"' % quote_escape(output), preamble=self.label+":"))
+
+	def text(self, input):
+		if self.translation:
+			output = []
+			for char in input:
+				if char in self.translation.table:
+					output.append(self.translation.table[char])
+				else:
+					output.append(chr(char))
+			return ansi_escape("".join(output))
+		else:
+			return ansi_escape(str(input))
 
 class PaletteDecoder(Decoder):
 	def __init__(self, start, end, label=None):
@@ -162,6 +183,17 @@ class GraphicDecoder(Decoder):
 		# Make binary chr file include
 		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
 
+
+class TranlationMap(Decoder):
+	def __init__(self, label, table):
+		Decoder.__init__(self, label)
+		self.table = { i: table[i] if i in table else chr(i) for i in xrange(0,256)}
+		script = "\n".join(["%02x=%s" % (hex,ansi_escape(text)) for hex,text in self.table.items()])
+		self.add_file("%s.tbl" % self.label, script.encode('utf-8'))
+
+	def decode(self, cart):
+		yield (self.start, Instruction('.STRINGMAPTABLE %s "%s.tbl"' % (self.label, self.label)))
+
 class TileMapDecoder(Decoder):
 	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0):
 		Decoder.__init__(self, label, start, end)
@@ -170,5 +202,8 @@ class TileMapDecoder(Decoder):
 _ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}
 
 def ansi_escape(subject):
-	return ''.join([ _ESCAPE_CHARS[c] if c in _ESCAPE_CHARS else c for c in subject])
+	return ''.join([_ESCAPE_CHARS[c] if c in _ESCAPE_CHARS else c for c in subject])
+
+def quote_escape(subject):
+	return subject.replace("\\", "\\\\")
 

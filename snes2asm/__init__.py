@@ -42,7 +42,8 @@ def exec_asm(options):
 	disasm = Disassembler(cart, options)
 	disasm.add_decoder(Headers(cart.header,cart.header+80))
 
-	disasm.code_banks = options.banks
+	if options.banks:
+		disasm.code_banks = options.banks
 
 	if options.config:
 		configurator = Configurator(options.config)

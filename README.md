@@ -127,6 +127,17 @@ decoders:
   end: 0x2c860
   bit_depth: 4
   palette: sprites1_pal
+- type: translation
+  label: default
+  table:
+    0x0: "A"
+    0x1: "B"
+    0x2: "Long string"
+- type: text
+  label: dialog
+  translation: default
+  start: 0x10000
+  end: 0x10010
 labels:
   read_joy: 0x182EC
   draw_oam: 0x13983

@@ -6,7 +6,7 @@ class Cartridge:
 
 	def __init__(self, options={}):
 		self.options = options
-		self.data = []
+		self.data = bytearray()
 		self.hirom = False
 		self.fastrom = False
 		self.header = 0
@@ -14,14 +14,14 @@ class Cartridge:
     # Data indexing and slicing
 	def __getitem__(self, i):
 		if isinstance(i, slice):
-			return [ ord(self.data[ir]) for ir in range(i.start, i.stop) ]
+			return self.data[i.start:i.stop]
 		else:
-			return ord(self.data[i])
+			return self.data[i]
 
 	# Open rom file
 	def open(self,file_path):
 		file = open(file_path,"rb")
-		data = file.read()
+		data = bytearray(file.read())
 		file.close()
 		self.set(data)
 
@@ -178,7 +178,6 @@ class Cartridge:
 
 def all_ascii(text):
 	for char in text:
-		char = ord(char)
 		if char < 32 or char > 126:
 			return False
 	return True

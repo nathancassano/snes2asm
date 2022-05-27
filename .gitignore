@@ -4,3 +4,5 @@ __pycache__/
 .Python
 *.swp
 .DS_Store
+snes2asm.egg-info
+build

@@ -229,12 +229,13 @@ class Disassembler:
 		self.pos = 0
 		self.flags = 0
 		self.valid_code = set()
-		self.labels = dict()
-		self.label_bank_aliases = dict()
+		self.code_labels = dict()
+		self.code_label_bank_aliases = dict()
 		self.data_labels = dict()
 		self.variables = dict()
 		self.code = OrderedDictRange()
 		self.decoders = RangeTree()
+		self.support_decoders = []
 		self.hex_comment = bool(self.options.hex)
 		self.no_label = bool(self.options.nolabel)
 		self.code_banks = []
@@ -259,6 +260,9 @@ class Disassembler:
 			self.auto_run()
 
 	def add_decoder(self, decoder):
+		if decoder.no_data():
+			self.support_decoders.append(decoder)
+			return
 		other_decoder = self.decoders.intersects(decoder.start, decoder.end)
 		if other_decoder != None:
 			raise ValueError("Decoder %s conflicts with %s between 0x%06X-0x%06X" % (decoder.label, other_decoder.label, decoder.start, decoder.end))
@@ -290,7 +294,7 @@ class Disassembler:
 	def find_bank_labels(self, start, end):
 		# Find existing labels inside bank
 		bank_labels = []
-		for label in self.labels.keys():
+		for label in self.code_labels.keys():
 			if label > start and label < end:
 				bank_labels.append(label)
 		bank_labels = sorted(bank_labels)
@@ -453,6 +457,10 @@ class Disassembler:
 				code.append(".define %s $%x\n" % (variable, index))
 			code.append("\n")
 
+		for dec in self.support_decoders:
+			for pos, instr in dec.decode(self.cart):
+				code.append(instr.text()+"\n")
+
 		# Process each bank
 		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
 			print "Bank %d" % bank
@@ -462,18 +470,18 @@ class Disassembler:
 				code.append(".ENDS\n\n.BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
 
 			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
-				if not self.no_label and addr in self.labels:
+				if not self.no_label and addr in self.code_labels:
 					# Bank aliases
-					if addr in self.label_bank_aliases:
-						bank_set = self.label_bank_aliases[addr]
+					if addr in self.code_label_bank_aliases:
+						bank_set = self.code_label_bank_aliases[addr]
 						for bank_alias in bank_set:
 							base = (bank_alias >> 16) & 0xE0
 							bank_label = bank_alias | (addr & 0xFFFF)
 							code.append(".BASE $%02X\nL%06X:\n" % (base, bank_label))
 						code.append(".BASE $00\n")
 					# Label
-					code.append("%s:\n" % self.labels[addr])
-				code.append(str(instr) + "\n")
+					code.append("%s:\n" % self.code_labels[addr])
+				code.append(instr.text() + "\n")
 
 			bank = bank + 1
 
@@ -498,11 +506,11 @@ class Disassembler:
 
 	# Get the generated or assigned label name for a rom address
 	def label_name(self, index, name=None):
-		if self.labels.has_key(index):
-			return self.labels[index]
+		if self.code_labels.has_key(index):
+			return self.code_labels[index]
 		if name == None:
 			name = "L%06X" % index
-		self.labels[index] = name
+		self.code_labels[index] = name
 		return name
 
 	def set_memory(self, index, variable):
@@ -926,10 +934,10 @@ class Disassembler:
 			# Set placeholder for label
 			self.label_name(index)
 			# Track list of banks at this index
-			if self.label_bank_aliases.has_key(index):
-				self.label_bank_aliases[index].add(pipe_bank)
+			if self.code_label_bank_aliases.has_key(index):
+				self.code_label_bank_aliases[index].add(pipe_bank)
 			else:
-				self.label_bank_aliases[index] = set([pipe_bank])
+				self.code_label_bank_aliases[index] = set([pipe_bank])
 
 			if self.cart.hirom:
 				label = pipe
@@ -950,7 +958,7 @@ class Disassembler:
 		return self.jmp_abs_long("jmp")
 
 	def opDC(self):
-		return self.ins("jmp" + self.abs_indir_long())
+		return self.ins("jmp.w" + self.abs_indir_long())
 
 	# JSR
 	def op22(self):
@@ -1506,9 +1514,9 @@ class Disassembler:
 	def abs_indir_long(self):
 		address = self.pipe16()
 		if self.variables.has_key(address):
-			return " [%s.w]" % self.variables[address]
+			return " [%s]" % self.variables[address]
 		else:
-			return " [$%04X.w]" % address
+			return " [$%04X]" % address
 
 	def abs_ind_x(self):
 		address = self.pipe16()
@@ -1641,12 +1649,12 @@ class Instruction:
 	def has_label(self):
 		return self.preamble != None and self.preamble[:-1] == ':'
 
-	def __str__(self):
+	def text(self):
 		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "\t\t; " + self.comment if self.comment else "")
 
 class InstructionReturn(Instruction):
-	def __str__(self):
-		return Instruction.__str__(self) + "\n"
+	def text(self):
+		return Instruction.text(self) + "\n"
 
 class OrderedDictRange(OrderedDict):
 
