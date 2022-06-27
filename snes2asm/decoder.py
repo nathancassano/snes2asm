@@ -46,28 +46,66 @@ class BinaryDecoder(Decoder):
 		yield (self.start, Instruction(".INCBIN \"%s.bin\"" % self.label, preamble=self.label+":"))
 
 class TextDecoder(Decoder):
-	def __init__(self, label, start, end=0, pack=None, translation=None):
-		# Calculate end from pack
-		if end == 0 and pack != None:
-			end = start + sum([x[1] for x in pack])
+	def __init__(self, label, start, end=0, pack=None, index=None, translation=None):
+		if pack != None:
+			if type(pack) is not list:
+				raise ValueError("TextDecoder: %s pack parameter must be an array" % label)
+			# Calculate end from pack
+			packsize = sum(pack)
+			if end == 0:
+				end = start + packsize
+			elif start + packsize != end:
+				raise ValueError("TextDecoder: %s pack lengths do not match end point" % label)
+		elif index != None:
+			index.parent = self
+			if end == 0:
+				raise ValueError("TextDecoder: %s missing end parameter" % label)
+
 		Decoder.__init__(self, label, start, end)
 		self.translation = translation
 		self.pack = pack
-		if self.pack != None:
-			if type(self.pack) is not list:
-				raise ValueError("TextDecoder: pack parameter is not an array")
+		self.index = index
 
 	def decode(self, cart):
 		if self.pack:
 			pos = self.start
-			for (label, size) in self.pack:
+			index = 0
+			for size in self.pack:
+				label = "%s_%d" % (self.label, index)
 				end = pos + size
 				output = self.text(cart[pos:end])
 				if self.translation:
 					yield (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label+":"))
 				else:
 					yield (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label+":"))
+				index = index + 1
 				pos = end
+		elif self.index:
+			pos = self.start
+			index = 0
+
+			for index_pos in xrange(self.index.start, self.index.end, self.index.size):
+				if index_pos == self.index.start:
+					continue
+				offset = self.index.val(cart, index_pos)
+				label = "%s_%d:" % (self.label, index)
+				offset = self.start + offset
+				output = self.text(cart[pos:offset])
+				if self.translation:
+					yield (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label))
+				else:
+					yield (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label))
+				pos = offset
+				index = index + 1
+
+			if pos < self.end:
+				label = "%s_%d:" % (self.label, index)
+				output = self.text(cart[pos:self.end])
+				if self.translation:
+					yield (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label))
+				else:
+					yield (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label))
+
 		else:
 			output = self.text(cart[self.start:self.end])
 			if self.translation:
@@ -86,6 +124,44 @@ class TextDecoder(Decoder):
 			return ansi_escape("".join(output))
 		else:
 			return ansi_escape(str(input))
+
+class IndexDecoder(Decoder):
+	def __init__(self, label, start, end, size=2):
+		Decoder.__init__(self, label, start, end)
+		if (end - start) % size != 0:
+			raise ValueError("Index: start and end do not align with size %i" % size)
+		self.size = size
+		self.parent = None
+
+	def val(self, cart, pos):
+		if self.size == 2:
+			return cart[pos] + (cart[pos+1] << 8)
+		elif self.size == 3:
+			return cart[pos] + (cart[pos+1] << 8) + (cart[pos+2] << 16)
+		elif self.size == 4:
+			return cart[pos] + (cart[pos+1] << 8) + (cart[pos+2] << 16) + (cart[pos+3] << 24)
+		else:
+			return cart[pos]
+
+
+	def decode(self, cart):
+		if self.size == 2:
+			instr = '.dw'
+		elif self.size == 3:
+			instr = '.dl'
+		elif self.size == 4:
+			instr = '.dd'
+		else:
+			instr = '.db'
+		index = 0
+		for pos in xrange(self.start, self.end, self.size):
+			offset = self.val(cart, pos)
+			if offset + self.parent.start > self.parent.end:
+				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index'))
+			else:
+				yield(pos, Instruction('%s %s_%i - %s_0' % (instr, self.parent.label, index, self.parent.label)))
+			index = index + 1
+			pre = None
 
 class PaletteDecoder(Decoder):
 	def __init__(self, start, end, label=None):

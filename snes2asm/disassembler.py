@@ -1244,15 +1244,15 @@ class Disassembler:
 
 	# RTI
 	def op40(self):
-		return InstructionReturn("rti")
+		return Instruction("rti", post="")
 
 	# RTL
 	def op6B(self):
-		return InstructionReturn("rtl")
+		return Instruction("rtl", post="")
 
 	# RTS
 	def op60(self):
-		return InstructionReturn("rts")
+		return Instruction("rts", post="")
 
 	# SBC
 	def opE9(self):
@@ -1641,20 +1641,25 @@ class Disassembler:
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
 
 class Instruction:
-	def __init__(self, code, preamble=None, comment=None):
+	def __init__(self, code, preamble=None, comment=None, post=None):
 		self.code = code
 		self.comment = comment
 		self.preamble = preamble
+		self.post = post
 
 	def has_label(self):
 		return self.preamble != None and self.preamble[:-1] == ':'
 
 	def text(self):
-		return (self.preamble + "\n" if self.preamble else "") + "\t" + self.code + ( "\t\t; " + self.comment if self.comment else "")
-
-class InstructionReturn(Instruction):
-	def text(self):
-		return Instruction.text(self) + "\n"
+		text = []
+		if self.preamble != None:
+			text.append(self.preamble + "\n")
+		text.append("\t" + self.code)
+		if self.comment != None:
+			text.append("\t\t; " + self.comment)
+		if self.post != None:
+			text.append("\n" + self.post)
+		return "".join(text)
 
 class OrderedDictRange(OrderedDict):
 
