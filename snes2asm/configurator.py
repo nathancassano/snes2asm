@@ -56,8 +56,10 @@ class Configurator:
 		# {palette: {'param': 'value'} } => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
 		for key, value in decode_conf.items():
 			if key in self.decoders_enabled.keys():
+				# value is a reference to another decoder by label
 				if type(value) == str and self.label_lookup.has_key(value):
 					decode_conf[key] = self.label_lookup[value]
+				# nested decoder with parameters
 				elif type(value) == dict:
 					value['type'] = key
 					value['label'] = "%s_%s" % (label, key)

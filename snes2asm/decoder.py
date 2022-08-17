@@ -69,61 +69,45 @@ class TextDecoder(Decoder):
 	def decode(self, cart):
 		if self.pack:
 			pos = self.start
-			index = 0
-			for size in self.pack:
-				label = "%s_%d" % (self.label, index)
+			for index in xrange(0, len(self.pack)):
+				size = self.pack[index]
+				label = "%s_%d:" % (self.label, index)
 				end = pos + size
-				output = self.text(cart[pos:end])
-				if self.translation:
-					yield (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label+":"))
-				else:
-					yield (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label+":"))
-				index = index + 1
+				yield self.text(pos, cart[pos:end], label)
 				pos = end
 		elif self.index:
 			pos = self.start
 			index = 0
-
 			for index_pos in xrange(self.index.start, self.index.end, self.index.size):
 				if index_pos == self.index.start:
 					continue
-				offset = self.index.val(cart, index_pos)
-				label = "%s_%d:" % (self.label, index)
-				offset = self.start + offset
-				output = self.text(cart[pos:offset])
-				if self.translation:
-					yield (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label))
-				else:
-					yield (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label))
+				offset = self.start + self.index.val(cart, index_pos)
+				if offset >=  self.end:
+					print "TextDecoder: %s skipping out of range index %d" % (self.label, index)
+					continue
+				yield self.text(pos, cart[pos:offset], "%s_%d:" % (self.label, index))
 				pos = offset
 				index = index + 1
 
 			if pos < self.end:
-				label = "%s_%d:" % (self.label, index)
-				output = self.text(cart[pos:self.end])
-				if self.translation:
-					yield (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label))
-				else:
-					yield (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label))
+				yield self.text(pos, cart[pos:self.end], "%s_%d:" % (self.label, index))
 
 		else:
-			output = self.text(cart[self.start:self.end])
-			if self.translation:
-				yield (self.start, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=self.label+":"))
-			else:
-				yield (self.start, Instruction('.db "%s"' % quote_escape(output), preamble=self.label+":"))
+			yield self.text(self.start, cart[self.start:self.end], self.label+":")
 
-	def text(self, input):
+	def text(self, pos, input, label):
 		if self.translation:
-			output = []
+			out = []
 			for char in input:
 				if char in self.translation.table:
-					output.append(self.translation.table[char])
+					out.append(self.translation.table[char])
 				else:
-					output.append(chr(char))
-			return ansi_escape("".join(output))
+					out.append(chr(char))
+			output = ansi_escape("".join(out))
+			return (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label))
 		else:
-			return ansi_escape(str(input))
+			output = ansi_escape(str(input))
+			return (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label))
 
 class IndexDecoder(Decoder):
 	def __init__(self, label, start, end, size=2):
