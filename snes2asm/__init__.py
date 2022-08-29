@@ -11,7 +11,7 @@ from snes2asm.cartridge import Cartridge
 from snes2asm.project_maker import ProjectMaker
 from snes2asm.configurator import Configurator
 from snes2asm.decoder import Headers
-from snes2asm.tile import Encode8bppTile, Encode4bppTile, Encode2bppTile
+from snes2asm.tile import *
 from snes2asm.bitmap import BitmapIndex
 
 def main(argv=None):
@@ -63,6 +63,7 @@ def bmp2chr(argv=None):
 	parser.add_argument('input', metavar='input.bmp', help="input bitmap file")
 	parser.add_argument('-o', '--output', required=True, default=None, help="File path to output *.chr")
 	parser.add_argument('-b2', '--b2pp', action='store_true', default=False, help="4 colors graphic output")
+	parser.add_argument('-b3', '--b3pp', action='store_true', default=False, help="8 colors graphic output")
 	parser.add_argument('-b4', '--b4pp', action='store_true', default=True, help="16 colors graphic output")
 	parser.add_argument('-b8', '--b8pp', action='store_true', default=False, help="256 colors graphic output")
 	parser.add_argument('-p', '--palette', action='store_true', default=False, help="Output color *.pal file")
@@ -82,6 +83,9 @@ def bmp2chr(argv=None):
 		elif args.b8pp:
 			encode = Encode8bppTile
 			depth = 8
+		elif args.b3pp:
+			encode = Encode3bppTile
+			depth = 3
 		else:
 			encode = Encode4bppTile
 			depth = 4

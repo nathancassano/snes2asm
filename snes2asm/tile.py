@@ -63,6 +63,26 @@ def Encode2bppTile(tile):
 		data[line], data[line+1] = Encode2Byte(p1, p2)
 	return data
 
+def Encode3bppTile(tile):
+
+	data = bytearray(24)
+	for line in xrange(0, 16, 2):
+		offset = line * 4
+		p1 = (tile[offset+0] & 0x3) << 6 | (tile[offset+1] & 0x3) << 4 | (tile[offset+2] & 0x3) << 2 | (tile[offset+3] & 0x3)
+		p2 = (tile[offset+4] & 0x3) << 6 | (tile[offset+5] & 0x3) << 4 | (tile[offset+6] & 0x3) << 2 | (tile[offset+7] & 0x3)
+		hi, lo = Encode2Byte(p1, p2)
+		data[line], data[line+1] = hi, lo
+
+	# Add the extra 3rd bit
+	for x in xrange(0,8):
+		row = 0
+		for y in xrange(0,8):
+			pix = tile[x*8+y]
+			row |= ((pix & 0x4) >> 2) << (7 - y)
+		data[16+x] = row
+
+	return data
+
 def Encode4bppTile(tile):
 	data = bytearray(32)
 	for line in xrange(0, 16, 2):
@@ -107,6 +127,16 @@ def Decode2bppTile(data):
 		tile.append((a1 & 0x30) >> 4)
 		tile.append((a1 & 0x0C) >> 2)
 		tile.append(a1 & 0x03)
+	return tile
+
+def Decode3bppTile(data):
+	tile = Decode2bppTile(data)
+
+	# Add the extra 3rd bit
+	for x in xrange(0,8):
+		b = data[16+x]
+		for y in xrange(0,8):
+			tile[x*8+y] |= ((b >> (7 - y)) & 1) << 2
 	return tile
 
 def Decode4bppTile(data):

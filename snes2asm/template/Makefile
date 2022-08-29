@@ -12,10 +12,13 @@ all: graphics $(ROM).smc
 	echo "Done"
 
 .PHONY: graphics
-graphics: *2bpp.chr *4bpp.chr *8bpp.chr
+graphics: *2bpp.chr *3bpp.chr *4bpp.chr *8bpp.chr
 
 %2bpp.chr: %2bpp.bmp
 	$(BMP2CHR) -b2 -o $@ $<
+
+%3bpp.chr: %3bpp.bmp
+	$(BMP2CHR) -b3 -o $@ $<
 
 %4bpp.chr: %4bpp.bmp
 	$(BMP2CHR) -b4 -o $@ $<

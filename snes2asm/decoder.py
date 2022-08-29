@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from snes2asm.disassembler import Instruction
-from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode2bppTile
+from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode3bppTile, Decode2bppTile
 from snes2asm.bitmap import BitmapIndex
 
 class Decoder:
@@ -194,6 +194,9 @@ class GraphicDecoder(Decoder):
 		elif self.bit_depth == 2:
 			self.tile_decoder = Decode2bppTile
 			self.tile_size = 16
+		elif self.bit_depth == 3:
+			self.tile_decoder = Decode3bppTile
+			self.tile_size = 24
 		else:
 			self.tile_decoder = Decode4bppTile
 			self.tile_size = 32
@@ -225,7 +228,9 @@ class GraphicDecoder(Decoder):
 		if self.palette != None and len(self.palette.colors) == 0:
 			next(self.palette.decode(cart))
 
-		bitmap = BitmapIndex(self.width, height, self.bit_depth, self.get_palette())
+		# Convert 3bpp to 4bpp for bitmap storage
+		bitmap_depth = 4 if self.bit_depth == 3 else self.bit_depth
+		bitmap = BitmapIndex(self.width, height, bitmap_depth, self.get_palette())
 
 		tile_index = 0
 		for i in xrange(self.start, self.end, self.tile_size):
