@@ -113,7 +113,7 @@ class IndexDecoder(Decoder):
 	def __init__(self, label, start, end, size=2):
 		Decoder.__init__(self, label, start, end)
 		if (end - start) % size != 0:
-			raise ValueError("Index: start and end do not align with size %i" % size)
+			raise ValueError("Index: %s start and end do not align with size %i" % (label, size))
 		self.size = size
 		self.parent = None
 
@@ -152,7 +152,7 @@ class PaletteDecoder(Decoder):
 		Decoder.__init__(self, label, start, end)
 		self.colors = []
 		if (self.end - self.start) & 0x1 != 0:
-			raise ValueError("Palette start and end (0x%06X-0x%06X) do not align with 2-byte color entries" % (self.start, self.end))
+			raise ValueError("Palette %s start and end (0x%06X-0x%06X) do not align with 2-byte color entries" % (self.label, self.start, self.end))
 
 	def colorCount(self):
 		return (self.end - self.start) / 2
@@ -202,7 +202,7 @@ class GraphicDecoder(Decoder):
 			self.tile_size = 32
 
 		if (self.end - self.start) % self.tile_size != 0:
-			raise ValueError("Tile start and end (0x%06X-0x%06X) do not align with the %d-bit tile size" % (self.start, self.end, self.bit_depth))
+			raise ValueError("Tile %s start and end (0x%06X-0x%06X) do not align with the %d-bit tile size" % (self.label, self.start, self.end, self.bit_depth))
 
 	def get_palette(self):
 		if self.palette != None:
@@ -210,7 +210,10 @@ class GraphicDecoder(Decoder):
 		else:
 			# Gray scale palette
 			step = 1 << (8 - self.bit_depth) 
-			return [ (x << 10 | x << 18 | x << 2) for x in xrange(0, 256, step) ]
+			pal = [ ((x + step - 1) << 8 | (x + step - 1) << 16 | (x + step - 1) << 0) for x in xrange(0, 256, step) ]
+			pal[0] = 0xFF00FF # Transparent
+			pal[1] = 0        # True black
+			return pal
 
 	def decode(self, cart):
 		# Output chr file
