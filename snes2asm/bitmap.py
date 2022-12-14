@@ -5,6 +5,10 @@ from io import BytesIO
 
 class BitmapIndex():
 	def __init__(self, width, height, bits, palette):
+		if bits not in [1,2,4,8]:
+			raise ValueError('Invalid index color bits')
+		colors = 1 << bits
+		palette = palette[0:colors]
 		self._bfType = 19778 # Bitmap signature
 		self._bfReserved1 = 0
 		self._bfReserved2 = 0
@@ -14,20 +18,22 @@ class BitmapIndex():
 		self._bcHeight = height
 		self._bcPlanes = 1
 		self._bcBitCount = bits
-		self._paddedWidth = self._bcWidth if (self._bcWidth * self._bcBitCount) / 8 & 0x3 == 0 else (self._bcWidth & ~0x3) + 4
+		if (self._bcWidth * self._bcBitCount) / 8 & 0x3 == 0:
+			self._paddedWidth = self._bcWidth 
+		else:
+			self._paddedWidth = (self._bcWidth & ~0x3) + 4
 
 		self._bfSize = 54 + self._graphicSize() + len(palette)*4
 
-		if bits not in [1,2,4,8]:
-			raise ValueError('Invalid index color bits')
-
-		colors = 1 << self._bcBitCount
-		self._palette = palette[0:colors]
+		self._palette = palette
 		self._bcTotalColors = len(self._palette)
 		self.clear()
 
 	def _graphicSize(self):
-		return max((self._bcBitCount*self._paddedWidth*self._bcHeight)/8, self._paddedWidth)
+		bytesPerRow = self._bcWidth * self._bcBitCount / 8
+		if bytesPerRow & 0x3 != 0:
+			bytesPerRow = (bytesPerRow & ~0x3) + 4
+		return bytesPerRow*self._bcHeight
 
 	def clear(self):
 		self._graphics = bytearray(self._graphicSize())
