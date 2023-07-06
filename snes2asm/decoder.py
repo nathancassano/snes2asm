@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 from snes2asm.disassembler import Instruction
-from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode3bppTile, Decode2bppTile
+from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode3bppTile, Decode2bppTile, DecodeMode7Tile
 from snes2asm.bitmap import BitmapIndex
 
 class Decoder:
@@ -174,21 +174,22 @@ class PaletteDecoder(Decoder):
 		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
 
 class GraphicDecoder(Decoder):
-	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0):
+	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0, mode7=False):
 		Decoder.__init__(self, label, start, end)
 		self.bit_depth = bit_depth
 		self.width = width
 		self.palette = palette
 		self.palette_offset = palette_offset
 
-		if self.palette != None:
-			if (1 << self.bit_depth) > self.palette.colorCount() - self.palette_offset:
-				raise ValueError("Palette %s does not provide enough colors for %d-bit graphic %s" % (self.palette.label, self.bit_depth, self.label))
-
 		if self.width & 0x7 != 0:
 			raise ValueError("Tile value width must be a multiple of 8")
 
-		if self.bit_depth == 8:
+		if mode7:
+			self.bit_depth = 8
+			self.tile_decoder = DecodeMode7Tile
+			if self.palette_offset != 0:
+				raise ValueError("Tile %s not allowed palette_offset for mode 7" % (self.label))
+		elif self.bit_depth == 8:
 			self.tile_decoder = Decode8bppTile
 			self.tile_size = 64
 		elif self.bit_depth == 2:
@@ -200,6 +201,10 @@ class GraphicDecoder(Decoder):
 		else:
 			self.tile_decoder = Decode4bppTile
 			self.tile_size = 32
+
+		if self.palette != None:
+			if (1 << self.bit_depth) > self.palette.colorCount() - self.palette_offset:
+				raise ValueError("Palette %s does not provide enough colors for %d-bit graphic %s" % (self.palette.label, self.bit_depth, self.label))
 
 		if (self.end - self.start) % self.tile_size != 0:
 			raise ValueError("Tile %s start and end (0x%06X-0x%06X) do not align with the %d-bit tile size" % (self.label, self.start, self.end, self.bit_depth))
@@ -243,14 +248,14 @@ class GraphicDecoder(Decoder):
 			tile_y = (tile_index / tiles_wide) * 8
 			for y in xrange(0,8):
 				for x in xrange(0,8):
-					bitmap.setPixel(tile_x+x,tile_y+y, tile[y*8+x])
+					pix = tile[y*8+x]
+					bitmap.setPixel(tile_x+x,tile_y+y, pix)
 			tile_index = tile_index + 1
 
 		self.add_file("%s_%dbpp.bmp" % (self.label, self.bit_depth), bitmap.output())
 
 		# Make binary chr file include
 		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
-
 
 class TranlationMap(Decoder):
 	def __init__(self, label, table):
@@ -265,6 +270,10 @@ class TranlationMap(Decoder):
 class TileMapDecoder(Decoder):
 	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0):
 		Decoder.__init__(self, label, start, end)
+
+	def decode(self, cart):
+		self.add_file("%s.tilemap" % self.label, bytearray(cart[self.start:self.end]))
+		yield (self.start, Instruction(".INCBIN \"%s.tilemap\"" % self.label, preamble=self.label+":"))
 
 
 _ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}

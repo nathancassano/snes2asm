@@ -62,12 +62,15 @@ def bmp2chr(argv=None):
 	parser = argparse.ArgumentParser( prog="bmp2chr", description='Convert an indexed bitmap to SNES CHR data', epilog='')
 	parser.add_argument('input', metavar='input.bmp', help="input bitmap file")
 	parser.add_argument('-o', '--output', required=True, default=None, help="File path to output *.chr")
-	parser.add_argument('-b2', '--b2pp', action='store_true', default=False, help="4 colors graphic output")
-	parser.add_argument('-b3', '--b3pp', action='store_true', default=False, help="8 colors graphic output")
-	parser.add_argument('-b4', '--b4pp', action='store_true', default=True, help="16 colors graphic output")
-	parser.add_argument('-b8', '--b8pp', action='store_true', default=False, help="256 colors graphic output")
+	parser.add_argument('-b2', '--b2pp', action='store_true', default=False, help="4 colors planar graphic output")
+	parser.add_argument('-b3', '--b3pp', action='store_true', default=False, help="8 colors planar graphic output")
+	parser.add_argument('-b4', '--b4pp', action='store_true', default=True, help="16 colors planar graphic output")
+	parser.add_argument('-b8', '--b8pp', action='store_true', default=False, help="256 colors planar graphic output")
+	parser.add_argument('-l2', '--linear2', action='store_true', default=False, help="4 colors linear graphic output")
+	parser.add_argument('-l4', '--linear4', action='store_true', default=True, help="16 colors linear graphic output")
+	parser.add_argument('-l8', '--linear8', action='store_true', default=False, help="256 colors linear graphic output")
 	parser.add_argument('-p', '--palette', action='store_true', default=False, help="Output color *.pal file")
-	parser.add_argument('-m', '--maxsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
+	parser.add_argument('-s', '--maxsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
 	args = parser.parse_args(argv[1:])
 
 	if args.input:
@@ -83,6 +86,15 @@ def bmp2chr(argv=None):
 		elif args.b8pp:
 			encode = Encode8bppTile
 			depth = 8
+		elif args.l8:
+			encode = EncodeLinear8Tile
+			depth = 8
+		elif args.l4:
+			encode = EncodeLinear4Tile
+			depth = 4
+		elif args.l2:
+			encode = EncodeLinear2Tile
+			depth = 2
 		elif args.b3pp:
 			encode = Encode3bppTile
 			depth = 3
@@ -129,4 +141,3 @@ def bmp2chr(argv=None):
 	else:
 		parser.print_help()
 	return 0
-

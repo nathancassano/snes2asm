@@ -29,5 +29,17 @@ class TileTest(unittest.TestCase):
 		b.setPixel(0,0,1)
 		b.output()
 
+	def test_create4bmp(self):
+		b = BitmapIndex(128,72,4,[0, 0xFF00, 0, 0]*4)
+		for x in xrange(0,128):
+			for y in xrange(0, 72):
+				if x > 24 and y > 64:
+					pass
+				else:
+					b.setPixel(x,y,1)
+
+		b.write("output128x64.bmp")
+
+
 if __name__ == '__main__':
     unittest.main()

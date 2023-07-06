@@ -7,7 +7,7 @@ from snes2asm.decoder import *
 class Configurator:
 	def __init__(self, file_path):
 		self.config = yaml.safe_load(file(file_path, 'r'))
-		self.decoders_enabled = {'data': Decoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranlationMap, 'index': IndexDecoder}
+		self.decoders_enabled = {'data': Decoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranlationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder}
 		self._validate()
 		self.label_lookup = {}
 

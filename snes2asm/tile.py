@@ -114,6 +114,22 @@ def Encode8bppTile(tile):
 		data[line+48], data[line+49] = Encode2Byte(p6, p8)
 	return data
 
+def EncodeLinear2Tile(tile):
+	data = bytearray(0)
+	for i in xrange(0, 16):
+		c = tile[i]
+		tile.append(c & 0x3)
+		tile.append((c & 0xC) >> 2)
+		tile.append((c & 0x30) >> 4)
+		tile.append((c & 0xC0) >> 6)
+	return data 
+
+def EncodeLinear4Tile(tile):
+	return bytearray(tile)
+
+def EncodeLinear8Tile(tile):
+	return bytearray(tile)
+
 def Decode2bppTile(data):
 	tile = bytearray(0)
 	for line in xrange(0, 16, 2):
@@ -176,3 +192,24 @@ def Decode8bppTile(data):
 		tile.append( (a1 & 0x03)      | (a2 & 0x03) << 2 | (a3 & 0x03) << 4 | (a4 & 0x03) << 6 )
 
 	return tile
+
+def DecodeLinear2Tile(data):
+	tile = bytearray(0)
+	for i in xrange(0, 16):
+		c = data[i]
+		tile.append(c & 0x3)
+		tile.append((c & 0xC) >> 2)
+		tile.append((c & 0x30) >> 4)
+		tile.append((c & 0xC0) >> 6)
+	return tile
+
+def DecodeLinear4Tile(data):
+	tile = bytearray(0)
+	for i in xrange(0, 32):
+		c = data[i]
+		tile.append(c & 0xF)
+		tile.append((c & 0xF0) >> 4)
+	return tile
+
+def DecodeLinear8Tile(data):
+	return bytearray(data)
