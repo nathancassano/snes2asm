@@ -50,7 +50,7 @@ def exec_asm(options):
 		try:
 			configurator.apply(disasm)
 		except ValueError as e:
-			print "Error: %s" % str(e)
+			print("Error: %s" % str(e))
 			sys.exit(-1)
 
 	disasm.run()
@@ -77,7 +77,7 @@ def bmp2chr(argv=None):
 		try:
 			b = BitmapIndex.read(args.input)
 		except Exception as e:
-			print "Error: %s" % str(e)
+			print("Error: %s" % str(e))
 			return -1
 
 		if args.b2pp:
@@ -103,11 +103,11 @@ def bmp2chr(argv=None):
 			depth = 4
 
 		if depth != b._bcBitCount:
-			print "Error: Bitmap file %s does not have a bit depth of %d" % (args.input, depth)
+			print("Error: Bitmap file %s does not have a bit depth of %d" % (args.input, depth))
 			return -1
 
 		if b._bcWidth % 8 != 0 or b._bcHeight % 8 != 0:
-			print "Error: Bitmap file %s does not have multiple tile dimensions of 8x8" % args.input
+			print("Error: Bitmap file %s does not have multiple tile dimensions of 8x8" % args.input)
 			return -1
 
 		# For odd shaped bitmaps match the number of tiles in the destination chr file by limiting the size
@@ -119,16 +119,16 @@ def bmp2chr(argv=None):
 		try:
 			chr_fp = open(args.output, "wb")
 		except Exception as e:
-			print "Error: %s" % str(e)
+			print("Error: %s" % str(e))
 			return -1
 
 		# Write tile data
 		running = True
-		for ty in xrange(0, b._bcHeight, 8):
-			for tx in xrange(0, b._bcWidth, 8):
+		for ty in range(0, b._bcHeight, 8):
+			for tx in range(0, b._bcWidth, 8):
 				tile = bytearray()
-				for y in xrange(ty, ty+8):
-					for x in xrange(tx, tx+8):
+				for y in range(ty, ty+8):
+					for x in range(tx, tx+8):
 						tile.append(b.getPixel(x, y))
 				chr_fp.write(encode(tile))
 				if chr_fp.tell() >= max_size:

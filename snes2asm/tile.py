@@ -56,7 +56,7 @@ def Encode2Byte(b1, b2):
 
 def Encode2bppTile(tile):
 	data = bytearray(16)
-	for line in xrange(0, 16, 2):
+	for line in range(0, 16, 2):
 		offset = line * 4
 		p1 = tile[offset+0] << 6 | tile[offset+1] << 4 | tile[offset+2] << 2 | tile[offset+3]
 		p2 = tile[offset+4] << 6 | tile[offset+5] << 4 | tile[offset+6] << 2 | tile[offset+7]
@@ -66,7 +66,7 @@ def Encode2bppTile(tile):
 def Encode3bppTile(tile):
 
 	data = bytearray(24)
-	for line in xrange(0, 16, 2):
+	for line in range(0, 16, 2):
 		offset = line * 4
 		p1 = (tile[offset+0] & 0x3) << 6 | (tile[offset+1] & 0x3) << 4 | (tile[offset+2] & 0x3) << 2 | (tile[offset+3] & 0x3)
 		p2 = (tile[offset+4] & 0x3) << 6 | (tile[offset+5] & 0x3) << 4 | (tile[offset+6] & 0x3) << 2 | (tile[offset+7] & 0x3)
@@ -74,9 +74,9 @@ def Encode3bppTile(tile):
 		data[line], data[line+1] = hi, lo
 
 	# Add the extra 3rd bit
-	for x in xrange(0,8):
+	for x in range(0,8):
 		row = 0
-		for y in xrange(0,8):
+		for y in range(0,8):
 			pix = tile[x*8+y]
 			row |= ((pix & 0x4) >> 2) << (7 - y)
 		data[16+x] = row
@@ -85,7 +85,7 @@ def Encode3bppTile(tile):
 
 def Encode4bppTile(tile):
 	data = bytearray(32)
-	for line in xrange(0, 16, 2):
+	for line in range(0, 16, 2):
 		offset = line * 4
 		p1 = ((tile[offset+0] & 0x3) << 6) | ((tile[offset+1] & 0x3) << 4) | ((tile[offset+2] & 0x3) << 2) | (tile[offset+3] & 0x3)
 		p2 = ((tile[offset+0] & 0xC) << 4) | ((tile[offset+1] & 0xC) << 2) | (tile[offset+2] & 0xC) | ((tile[offset+3] & 0xC) >> 2)
@@ -97,7 +97,7 @@ def Encode4bppTile(tile):
 
 def Encode8bppTile(tile):
 	data = bytearray(64)
-	for line in xrange(0, 16, 2):
+	for line in range(0, 16, 2):
 		offset = line * 4
 		p1 = (tile[offset+0] & 0x3) << 6 | (tile[offset+1] & 0x3) << 4 | (tile[offset+2] & 0x3) << 2 | tile[offset+3] & 0x3
 		p2 = (tile[offset+0] & 0xC) << 4 | (tile[offset+1] & 0xC) << 2 | (tile[offset+2] & 0xC)      | (tile[offset+3] & 0xC) >> 2
@@ -116,7 +116,7 @@ def Encode8bppTile(tile):
 
 def EncodeLinear2Tile(tile):
 	data = bytearray(0)
-	for i in xrange(0, 16):
+	for i in range(0, 16):
 		c = tile[i]
 		tile.append(c & 0x3)
 		tile.append((c & 0xC) >> 2)
@@ -132,7 +132,7 @@ def EncodeLinear8Tile(tile):
 
 def Decode2bppTile(data):
 	tile = bytearray(0)
-	for line in xrange(0, 16, 2):
+	for line in range(0, 16, 2):
 		# Single bitplane
 		a1, b1 = Decode2Byte(data[line], data[line+1])
 		tile.append((b1 & 0xC0) >> 6)
@@ -149,15 +149,15 @@ def Decode3bppTile(data):
 	tile = Decode2bppTile(data)
 
 	# Add the extra 3rd bit
-	for x in xrange(0,8):
+	for x in range(0,8):
 		b = data[16+x]
-		for y in xrange(0,8):
+		for y in range(0,8):
 			tile[x*8+y] |= ((b >> (7 - y)) & 1) << 2
 	return tile
 
 def Decode4bppTile(data):
 	tile = bytearray(0)
-	for line in xrange(0, 16, 2):
+	for line in range(0, 16, 2):
 		# Double bitplane
 		a1, b1 = Decode2Byte(data[line], data[line+1])
 		a2, b2 = Decode2Byte(data[line+16], data[line+17])
@@ -174,7 +174,7 @@ def Decode4bppTile(data):
 
 def Decode8bppTile(data):
 	tile = bytearray(0)
-	for line in xrange(0, 16, 2):
+	for line in range(0, 16, 2):
 		# Quad bitplane
 		a1, b1 = Decode2Byte(data[line], data[line+1])
 		a2, b2 = Decode2Byte(data[line+16], data[line+17])
@@ -195,7 +195,7 @@ def Decode8bppTile(data):
 
 def DecodeLinear2Tile(data):
 	tile = bytearray(0)
-	for i in xrange(0, 16):
+	for i in range(0, 16):
 		c = data[i]
 		tile.append(c & 0x3)
 		tile.append((c & 0xC) >> 2)
@@ -205,11 +205,15 @@ def DecodeLinear2Tile(data):
 
 def DecodeLinear4Tile(data):
 	tile = bytearray(0)
-	for i in xrange(0, 32):
+	for i in range(0, 32):
 		c = data[i]
 		tile.append(c & 0xF)
 		tile.append((c & 0xF0) >> 4)
 	return tile
 
 def DecodeLinear8Tile(data):
+	return bytearray(data)
+
+def DecodeMode7Tile(data):
+	#TODO
 	return bytearray(data)

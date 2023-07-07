@@ -241,7 +241,7 @@ class Disassembler:
 		self.code_banks = []
 
 	def run(self):
-		print "Disassembling..."
+		print("Disassembling...")
 
 		self.run_decoders()
 
@@ -307,7 +307,7 @@ class Disassembler:
 
 		# TODO: Process first bank then banks with most labels
 
-		for bank in xrange(0, self.cart.bank_count()):
+		for bank in range(0, self.cart.bank_count()):
 			# Ignore non-code banks
 			if len(self.code_banks) > 0 and bank not in self.code_banks:
 				continue
@@ -463,7 +463,7 @@ class Disassembler:
 
 		# Process each bank
 		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
-			print "Bank %d" % bank
+			print("Bank %d" % bank)
 			if bank == 0:
 				code.append(".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
 			else:
@@ -506,7 +506,7 @@ class Disassembler:
 
 	# Get the generated or assigned label name for a rom address
 	def label_name(self, index, name=None):
-		if self.code_labels.has_key(index):
+		if index in self.code_labels:
 			return self.code_labels[index]
 		if name == None:
 			name = "L%06X" % index
@@ -934,7 +934,7 @@ class Disassembler:
 			# Set placeholder for label
 			self.label_name(index)
 			# Track list of banks at this index
-			if self.code_label_bank_aliases.has_key(index):
+			if index in self.code_label_bank_aliases:
 				self.code_label_bank_aliases[index].add(pipe_bank)
 			else:
 				self.code_label_bank_aliases[index] = set([pipe_bank])
@@ -1481,7 +1481,7 @@ class Disassembler:
 
 		if address_info:
 			return self.ins("%s %s.w" % (op, address_info[0]), comment = address_info[1])
-		elif self.variables.has_key(address):
+		elif address in self.variables:
 			return self.ins("%s %s.w" %  (op, self.variables[address]))
 		else:
 			return self.ins(op + self.abs())
@@ -1492,42 +1492,42 @@ class Disassembler:
 
 		if address_info:
 			return self.ins("%s %s.l" % (op, address_info[0]), comment = address_info[1])
-		elif self.variables.has_key(address):
+		elif address in self.variables:
 			return self.ins("%s %s.l" %  (op, self.variables[address]))
 		else:
 			return self.ins(op + self.abs_long())
 
 	def abs_indir(self):
 		address = self.pipe16()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " ($%s.w)" % self.variables[address]
 		else:
 			return " ($%04X.w)" % address
 
 	def abs_ind_indir(self):
 		address = self.pipe16()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " (%s.w,X)" % self.variables[address]
 		else:
 			return " ($%04X.w,X)" % address
 
 	def abs_indir_long(self):
 		address = self.pipe16()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " [%s]" % self.variables[address]
 		else:
 			return " [$%04X]" % address
 
 	def abs_ind_x(self):
 		address = self.pipe16()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " %s.w,X" % self.variables[address]
 		else:
 			return " $%04X.w,X" % address
 
 	def abs_ind_y(self):
 		address = self.pipe16()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " %s.w,Y" % self.variables[address]
 		else:
 			return " $%04X.w,Y" % address
@@ -1540,28 +1540,28 @@ class Disassembler:
 
 	def dir_page(self):
 		address = self.pipe8()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " %s.b" % self.variables[address]
 		else:
 			return " $%02X.b" % address
 
 	def dir_page_indir(self):
 		address = self.pipe8()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " (%s.b)" % self.variables[address]
 		else:
 			return " ($%02X.b)" % address
 
 	def dir_page_ind_x(self):
 		address = self.pipe8()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " %s.b,X" % self.variables[address]
 		else:
 			return " $%02X.b,X" % address
 
 	def dir_page_ind_y(self):
 		address = self.pipe8()
-		if self.variables.has_key(address):
+		if address in self.variables:
 			return " %s.b,Y" % self.variables[address]
 		else:
 			return " $%02X.b,Y" % address
@@ -1664,7 +1664,7 @@ class Instruction:
 class OrderedDictRange(OrderedDict):
 
 	def sort_keys(self):
-		keys = self.keys()
+		keys = list(self)
 		keys.sort()
 		dict_sort = OrderedDictRange((k, self[k]) for k in keys)
 		self.clear()
@@ -1672,7 +1672,7 @@ class OrderedDictRange(OrderedDict):
 
 	# Data slicing
 	def item_range(self, start, stop):
-		keys = self.keys()
+		keys = list(self)
 		left = bisect.bisect_left(keys, start)
 		right = bisect.bisect_left(keys, stop, left)
 		return [ (k, self[k]) for k in keys[left:right] ]

@@ -21,7 +21,7 @@ class ProjectMaker:
 
 		# Write main assembly code
 		filename = "%s/game.asm" % dir
-		f = open(filename, 'w')
+		f = open(filename, 'wb')
 		f.write(self.disasm.assembly().encode('utf-8'))
 		f.close()
 
@@ -29,7 +29,8 @@ class ProjectMaker:
 		for decoder in self.disasm.decoders.items():
 			for file, content in decoder.files.items():
 				filename = "%s/%s" % (dir, file)
-				f = open(filename, 'wb')
+				mode = 'w' if type(content) == str else 'wb'
+				f = open(filename, mode)
 				f.write(content)
 				f.close()
 

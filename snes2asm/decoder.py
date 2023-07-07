@@ -3,6 +3,7 @@
 from snes2asm.disassembler import Instruction
 from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode3bppTile, Decode2bppTile, DecodeMode7Tile
 from snes2asm.bitmap import BitmapIndex
+import yaml
 
 class Decoder:
 	def __init__(self, label=None, start=0, end=0):
@@ -69,7 +70,7 @@ class TextDecoder(Decoder):
 	def decode(self, cart):
 		if self.pack:
 			pos = self.start
-			for index in xrange(0, len(self.pack)):
+			for index in range(0, len(self.pack)):
 				size = self.pack[index]
 				label = "%s_%d:" % (self.label, index)
 				end = pos + size
@@ -78,12 +79,12 @@ class TextDecoder(Decoder):
 		elif self.index:
 			pos = self.start
 			index = 0
-			for index_pos in xrange(self.index.start, self.index.end, self.index.size):
+			for index_pos in range(self.index.start, self.index.end, self.index.size):
 				if index_pos == self.index.start:
 					continue
 				offset = self.start + self.index.val(cart, index_pos)
 				if offset >=  self.end:
-					print "TextDecoder: %s skipping out of range index %d" % (self.label, index)
+					print("TextDecoder: %s skipping out of range index %d" % (self.label, index))
 					continue
 				yield self.text(pos, cart[pos:offset], "%s_%d:" % (self.label, index))
 				pos = offset
@@ -138,7 +139,7 @@ class IndexDecoder(Decoder):
 		else:
 			instr = '.db'
 		index = 0
-		for pos in xrange(self.start, self.end, self.size):
+		for pos in range(self.start, self.end, self.size):
 			offset = self.val(cart, pos)
 			if offset + self.parent.start > self.parent.end:
 				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index'))
@@ -157,13 +158,15 @@ class PaletteDecoder(Decoder):
 	def colorCount(self):
 		return (self.end - self.start) / 2
 
+	def filename(self):
+		return "%s.pal" % self.label
+
 	def decode(self, cart):
 		# Output pal file
-		file_name = "%s.pal" % self.label
-		self.add_file(file_name, bytearray(cart[self.start:self.end]))
+		self.add_file(self.filename(), bytearray(cart[self.start:self.end]))
 
 		lines = []
-		for i in xrange(self.start, self.end, 2):
+		for i in range(self.start, self.end, 2):
 			bgr565 = cart[i] | cart[i+1] << 8
 			rgbcolor = ((bgr565 & 0x7c00) >> 7 | (bgr565 & 0x3e0) << 6 | (bgr565 & 0x1f) << 19)
 			self.colors.append(rgbcolor)
@@ -171,7 +174,7 @@ class PaletteDecoder(Decoder):
 
 		self.add_file("%s.rgb" % self.label, "\n".join(lines) )
 
-		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
+		yield (self.start, Instruction(".INCBIN \"%s\""% self.filename(), preamble=self.label+":"))
 
 class GraphicDecoder(Decoder):
 	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0, mode7=False):
@@ -215,10 +218,13 @@ class GraphicDecoder(Decoder):
 		else:
 			# Gray scale palette
 			step = 1 << (8 - self.bit_depth) 
-			pal = [ ((x + step - 1) << 8 | (x + step - 1) << 16 | (x + step - 1) << 0) for x in xrange(0, 256, step) ]
+			pal = [ ((x + step - 1) << 8 | (x + step - 1) << 16 | (x + step - 1) << 0) for x in range(0, 256, step) ]
 			pal[0] = 0xFF00FF # Transparent
 			pal[1] = 0        # True black
 			return pal
+
+	def filename(self):
+		return "%s_%dbpp.bmp" % (self.label, self.bit_depth)
 
 	def decode(self, cart):
 		# Output chr file
@@ -226,9 +232,9 @@ class GraphicDecoder(Decoder):
 		self.add_file(file_name, bytearray(cart[self.start:self.end]))
 
 		# Output bitmap file
-		tile_count = (self.end - self.start) / self.tile_size
-		tiles_wide = self.width / 8
-		height = (tile_count / tiles_wide) * 8
+		tile_count = int((self.end - self.start) / self.tile_size)
+		tiles_wide = int(self.width / 8.0)
+		height = int((tile_count / tiles_wide) * 8)
 		if tile_count % tiles_wide != 0:
 			height = height + 8
 
@@ -241,18 +247,18 @@ class GraphicDecoder(Decoder):
 		bitmap = BitmapIndex(self.width, height, bitmap_depth, self.get_palette())
 
 		tile_index = 0
-		for i in xrange(self.start, self.end, self.tile_size):
+		for i in range(self.start, self.end, self.tile_size):
 			tile = self.tile_decoder(cart[i:i+self.tile_size])
 
 			tile_x = (tile_index % tiles_wide) * 8
-			tile_y = (tile_index / tiles_wide) * 8
-			for y in xrange(0,8):
-				for x in xrange(0,8):
+			tile_y = int(tile_index / tiles_wide) * 8
+			for y in range(0,8):
+				for x in range(0,8):
 					pix = tile[y*8+x]
 					bitmap.setPixel(tile_x+x,tile_y+y, pix)
 			tile_index = tile_index + 1
 
-		self.add_file("%s_%dbpp.bmp" % (self.label, self.bit_depth), bitmap.output())
+		self.add_file(self.filename(), bitmap.output())
 
 		# Make binary chr file include
 		yield (self.start, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
@@ -260,7 +266,7 @@ class GraphicDecoder(Decoder):
 class TranlationMap(Decoder):
 	def __init__(self, label, table):
 		Decoder.__init__(self, label)
-		self.table = { i: table[i] if i in table else chr(i) for i in xrange(0,256)}
+		self.table = { i: table[i] if i in table else chr(i) for i in range(0,256)}
 		script = "\n".join(["%02x=%s" % (hex,ansi_escape(text)) for hex,text in self.table.items()])
 		self.add_file("%s.tbl" % self.label, script.encode('utf-8'))
 
@@ -268,12 +274,33 @@ class TranlationMap(Decoder):
 		yield (self.start, Instruction('.STRINGMAPTABLE %s "%s.tbl"' % (self.label, self.label)))
 
 class TileMapDecoder(Decoder):
-	def __init__(self, label, start, end, bit_depth=4, width=128, palette=None, palette_offset=0):
+	def __init__(self, label, start, end, gfx, width=128, palette=None, palette_offset=0):
 		Decoder.__init__(self, label, start, end)
+		self.gfx = gfx
+		self.width = width
+		self.height = int((self.end - self.start) / (width * 2))
+
+		# Use gfx palette if not given in params
+		if palette == None and gfx.palette:
+			self.palette = gfx.palette
+			self.palette_offset = gfx.palette_offset
+		else:
+			self.palette = palette
+			self.palette_offset = palette_offset
 
 	def decode(self, cart):
-		self.add_file("%s.tilemap" % self.label, bytearray(cart[self.start:self.end]))
-		yield (self.start, Instruction(".INCBIN \"%s.tilemap\"" % self.label, preamble=self.label+":"))
+		# Tilemap file
+		tilechr = "%s.tilechr" % self.label
+		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilechr': tilechr, 'gfx': self.gfx.filename()}
+		if self.palette:
+			tilemap['palette'] = self.palette.filename()
+			if self.palette_offset != 0:
+				tilemap['palette_offset'] = self.palette_offset
+		self.add_file("%s.tilemap" % self.label, yaml.dump(tilemap).encode('utf-8'))
+
+		# Tile character map file
+		self.add_file(tilechr, bytearray(cart[self.start:self.end]))
+		yield (self.start, Instruction(".INCBIN \"%s.tilechr\"" % self.label, preamble=self.label+":"))
 
 
 _ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}

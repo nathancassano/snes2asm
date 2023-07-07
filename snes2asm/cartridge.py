@@ -120,7 +120,7 @@ class Cartridge:
 		return 0x10000 if self.hirom else 0x8000
 
 	def bank_count(self):
-		return len(self.data) / self.bank_size()
+		return int(len(self.data) / self.bank_size())
 
 	def size(self):
 		return len(self.data)

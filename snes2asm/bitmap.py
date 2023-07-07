@@ -18,7 +18,7 @@ class BitmapIndex():
 		self._bcHeight = height
 		self._bcPlanes = 1
 		self._bcBitCount = bits
-		if (self._bcWidth * self._bcBitCount) / 8 & 0x3 == 0:
+		if int((self._bcWidth * self._bcBitCount) / 8.0) & 0x3 == 0:
 			self._paddedWidth = self._bcWidth 
 		else:
 			self._paddedWidth = (self._bcWidth & ~0x3) + 4
@@ -30,10 +30,10 @@ class BitmapIndex():
 		self.clear()
 
 	def _graphicSize(self):
-		bytesPerRow = self._bcWidth * self._bcBitCount / 8
+		bytesPerRow = int(self._bcWidth * (self._bcBitCount / 8.0))
 		if bytesPerRow & 0x3 != 0:
 			bytesPerRow = (bytesPerRow & ~0x3) + 4
-		return bytesPerRow*self._bcHeight
+		return int(bytesPerRow*self._bcHeight)
 
 	def clear(self):
 		self._graphics = bytearray(self._graphicSize())
@@ -44,24 +44,24 @@ class BitmapIndex():
 		if index < 0 or index > self._bcTotalColors:
 			raise ValueError('Color value %d must be inside index range of %d' % (index, self._bcTotalColors))
 
-		stride = (self._bcHeight - 1 - y) * self._paddedWidth + x
+		stride = int((self._bcHeight - 1 - y) * self._paddedWidth + x)
 		# 1-Bit
 		if self._bcBitCount == 1:
-			offset = stride / 8
+			offset = int(stride / 8)
 			bitrow = stride & 0x7
 			pixel = self._graphics[offset]
 			pixel = pixel & ~(0x80 >> bitrow) | (index << 7) >> bitrow
 			self._graphics[offset] = pixel & 0xFF
 		# 2-Bit
 		elif self._bcBitCount == 2:
-			offset = stride / 4
+			offset = int(stride / 4)
 			bitrow = (stride & 0x3) << 1
 			pixel = self._graphics[offset]
 			pixel = pixel & ~(0xC >> bitrow) | (index << 6) >> bitrow
 			self._graphics[offset] = pixel & 0xFF
 		# 4-Bit
 		elif self._bcBitCount == 4:
-			offset = stride / 2
+			offset = int(stride / 2)
 			bitrow = (stride & 0x1) << 2
 			pixel = self._graphics[offset]
 			pixel = pixel & ~(0xF0 >> bitrow) | (index << 4) >> bitrow
@@ -76,17 +76,17 @@ class BitmapIndex():
 		stride = (self._bcHeight - 1 - y) * self._paddedWidth + x
 		# 1-Bit
 		if self._bcBitCount == 1:
-			offset = stride / 8
+			offset = int(stride / 8)
 			pixel = self._graphics[offset]
 			return (pixel >> (~stride & 0x7)) & 0x1
 		# 2-Bit
 		elif self._bcBitCount == 2:
-			offset = stride / 4
+			offset = int(stride / 4)
 			pixel = self._graphics[offset]
 			return (pixel >> ((~stride & 0x3) << 1)) & 0x3
 		# 4-Bit
 		elif self._bcBitCount == 4:
-			offset = stride / 2
+			offset = int(stride / 2)
 			pixel = self._graphics[offset]
 			return (pixel >> ((~stride & 0x1) << 2)) & 0xF
 		# 8-Bit
@@ -165,7 +165,7 @@ class BitmapIndex():
 		bit_offset = pal_offset + pal_size
 
 		palette = []
-		for i in xrange(pal_offset, bit_offset, 4):
+		for i in range(pal_offset, bit_offset, 4):
 			palette.append(struct.unpack('<L', file_data[i:i+4])[0])
 
 		map = file_data[bit_offset:]
