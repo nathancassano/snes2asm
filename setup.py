@@ -17,9 +17,9 @@ setup(
     license="Apache 2",
     packages=find_packages(exclude=['snes2asm/tests']),
     include_package_data=True,
-    package_data = {'snes2asm':['template/*']},
+    package_data = {'snes2asm':['template/*'], 'images':['*']},
     scripts=['bin/snes2asm','bin/bmp2chr'],
-    install_requires=['PyYAML'],
+    install_requires=['PyYAML', 'PyQt5'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
