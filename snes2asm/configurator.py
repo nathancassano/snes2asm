@@ -8,7 +8,7 @@ from snes2asm.decoder import *
 class Configurator:
 	def __init__(self, file_path):
 		self.config = yaml.safe_load(open(file_path, 'r'))
-		self.decoders_enabled = {'data': Decoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranlationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder}
+		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranlationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder}
 		self._validate()
 		self.label_lookup = {}
 
@@ -52,6 +52,9 @@ class Configurator:
 			raise ValueError("Decoder missing label")
 		label = decode_conf['label']
 
+		if label in self.label_lookup:
+			raise ValueError("Duplicate label %s" % label)
+
 		# Replace decoder parameter references with actual object instances or sub decoder
 		# {palette: 'sprites1_pal'} => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
 		# {palette: {'param': 'value'} } => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
@@ -60,6 +63,14 @@ class Configurator:
 				# value is a reference to another decoder by label
 				if type(value) == str and value in self.label_lookup:
 					decode_conf[key] = self.label_lookup[value]
+				# list of references
+				elif type(value) == list:
+					for i in range(0, len(value)):
+						item = value[i]
+						if type(item) == str and item in self.label_lookup:
+							value[i] = self.label_lookup[item]
+						else:
+							raise ValueError("Could not find decoder label reference \"%s\" for decoder \"%s\"" % (item, str(decode_conf)))
 				# nested decoder with parameters
 				elif type(value) == dict:
 					value['type'] = key

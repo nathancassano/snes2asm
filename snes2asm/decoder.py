@@ -3,6 +3,7 @@
 from snes2asm.disassembler import Instruction
 from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode3bppTile, Decode2bppTile, DecodeMode7Tile
 from snes2asm.bitmap import BitmapIndex
+import struct
 import yaml
 
 class Decoder:
@@ -30,6 +31,20 @@ class Decoder:
 
 	def add_file(self, name, data):
 		self.files[name] = data
+
+	def val(cart, pos, size=1):
+		if size == 2:
+			return cart[pos] + (cart[pos+1] << 8)
+		elif size == 3:
+			return cart[pos] + (cart[pos+1] << 8) + (cart[pos+2] << 16)
+		elif size == 4:
+			return cart[pos] + (cart[pos+1] << 8) + (cart[pos+2] << 16) + (cart[pos+3] << 24)
+		else:
+			return cart[pos]
+
+	def data_directive(size):
+		return ['.db', '.dw', '.dl', '.dd'][(size-1) & 0x3]
+
 
 class Headers(Decoder):
 	def __init__(self, start, end):
@@ -82,7 +97,7 @@ class TextDecoder(Decoder):
 			for index_pos in range(self.index.start, self.index.end, self.index.size):
 				if index_pos == self.index.start:
 					continue
-				offset = self.start + self.index.val(cart, index_pos)
+				offset = self.start + Decoder.val(cart, index_pos)
 				if offset >=  self.end:
 					print("TextDecoder: %s skipping out of range index %d" % (self.label, index))
 					continue
@@ -107,8 +122,40 @@ class TextDecoder(Decoder):
 			output = ansi_escape("".join(out))
 			return (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label))
 		else:
-			output = ansi_escape(str(input))
+			output = ansi_escape(str(input.decode()))
 			return (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label))
+
+class ArrayDecoder(Decoder):
+
+	hex_fmt = ['$%02X', '$%04X', '$%06X', '$%08X']
+
+	def __init__(self, label, start, end, size=1, struct=None):
+		Decoder.__init__(self, label, start, end)
+		self.size = size
+		self.struct = struct
+
+		if self.struct == None and (self.size > 4 or self.size < 1):
+			raise ValueError("ArrayDecoder: Invalid array element size %d for label %s" % (self.size, label))
+
+		if (end - start) % size != 0:
+			raise ValueError("ArrayDecoder: %s start and end do not align with size %i" % (label, size))
+
+	def decode(self, cart):
+		if self.struct != None:
+			# TODO
+			pass
+		else:
+			instr = Decoder.data_directive(self.size) + ' '
+			form = self.hex_fmt[self.size-1]
+			show_label = self.label != None
+			for y in range(self.start, self.end, 16):
+				parts = [form % Decoder.val(cart, x, self.size) for x in range(y, min(y+16,self.end), self.size)]
+				line = instr + ', '.join(parts)
+				if show_label:
+					yield (y, Instruction(line, preamble=self.label+":"))
+					show_label = False
+				else:
+					yield (y, Instruction(line))
 
 class IndexDecoder(Decoder):
 	def __init__(self, label, start, end, size=2):
@@ -118,29 +165,11 @@ class IndexDecoder(Decoder):
 		self.size = size
 		self.parent = None
 
-	def val(self, cart, pos):
-		if self.size == 2:
-			return cart[pos] + (cart[pos+1] << 8)
-		elif self.size == 3:
-			return cart[pos] + (cart[pos+1] << 8) + (cart[pos+2] << 16)
-		elif self.size == 4:
-			return cart[pos] + (cart[pos+1] << 8) + (cart[pos+2] << 16) + (cart[pos+3] << 24)
-		else:
-			return cart[pos]
-
-
 	def decode(self, cart):
-		if self.size == 2:
-			instr = '.dw'
-		elif self.size == 3:
-			instr = '.dl'
-		elif self.size == 4:
-			instr = '.dd'
-		else:
-			instr = '.db'
+		instr = Decoder.data_directive(self.size)
 		index = 0
 		for pos in range(self.start, self.end, self.size):
-			offset = self.val(cart, pos)
+			offset = Decoder.val(cart, pos, self.size)
 			if offset + self.parent.start > self.parent.end:
 				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index'))
 			else:
@@ -274,28 +303,23 @@ class TranlationMap(Decoder):
 		yield (self.start, Instruction('.STRINGMAPTABLE %s "%s.tbl"' % (self.label, self.label)))
 
 class TileMapDecoder(Decoder):
-	def __init__(self, label, start, end, gfx, width=128, palette=None, palette_offset=0):
+	def __init__(self, label, start, end, gfx, width=128, encoding=None):
 		Decoder.__init__(self, label, start, end)
 		self.gfx = gfx
 		self.width = width
 		self.height = int((self.end - self.start) / (width * 2))
 
-		# Use gfx palette if not given in params
-		if palette == None and gfx.palette:
-			self.palette = gfx.palette
-			self.palette_offset = gfx.palette_offset
-		else:
-			self.palette = palette
-			self.palette_offset = palette_offset
-
 	def decode(self, cart):
 		# Tilemap file
 		tilechr = "%s.tilechr" % self.label
-		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilechr': tilechr, 'gfx': self.gfx.filename()}
-		if self.palette:
-			tilemap['palette'] = self.palette.filename()
-			if self.palette_offset != 0:
-				tilemap['palette_offset'] = self.palette_offset
+		if type(self.gfx) == list:
+			gfx = [ g.filename() for g in self.gfx ]
+			palette = [ g.palette.filename() for g in self.gfx ]
+		else:
+			gfx = self.gfx.filename()
+			palette = self.gfx.palette.filename()
+
+		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilechr': tilechr, 'gfx': gfx, 'palette': palette}
 		self.add_file("%s.tilemap" % self.label, yaml.dump(tilemap).encode('utf-8'))
 
 		# Tile character map file

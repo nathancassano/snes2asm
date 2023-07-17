@@ -12,13 +12,13 @@ class CartridgeTest(unittest.TestCase):
 	def test_headers(self):
 
 		self.assertEqual(0, self.cart.make_code)
-		self.assertEqual("SNES", self.cart.game_code)
-		self.assertEqual("\x00\x00\x00\x00\x00\x00\x00", self.cart.fixed)
+		self.assertEqual(b"SNES", self.cart.game_code)
+		self.assertEqual(b"\x00\x00\x00\x00\x00\x00\x00", self.cart.fixed)
 		self.assertEqual(0, self.cart.expand_ram)
 		self.assertEqual(0, self.cart.version)
 		self.assertEqual(0, self.cart.sub_type)
 
-		self.assertEqual("Classic Kong Complete", self.cart.title)
+		self.assertEqual(b"Classic Kong Complete", self.cart.title)
 		self.assertEqual(0x30, self.cart.map_mode)
 		self.assertEqual(0, self.cart.cart_type)
 		self.assertEqual(0x8, self.cart.rom_size)

@@ -4,8 +4,8 @@ decoders:
 - type: text
   label: stub
   start: 0x15ac9
-  end: 0x15c2d
-  pack: [11,6,3]
+  end: 0x15c2e
+  #pack: [11,6,3]
 - type: palette
   label: back1_pal 
   start: 0x2f860
@@ -338,6 +338,49 @@ decoders:
   label: music_victory_size
   start: 0x15A4F
   end: 0x15A51
+- type: text
+  label: versionStr
+  start: 0x15E29
+  end: 0x15E2F
+- type: data
+  label: tileAttribute
+  start: 0x15E2F
+  end: 0x1622F
+- type: array
+  label: flipTable
+  start: 0x16729
+  end: 0x16829
+- type: array
+  label: itemSpriteTable
+  size: 2
+  start: 0x1622F
+  end: 0x16239
+- type: array
+  label: fireBallJumpInAnimation
+  start: 0x16239
+  end: 0x16299
+- type: array
+  label: fireBallSpawnAnim
+  start: 0x16299
+  end: 0x162C5
+  size: 2
+- type: array
+  label: bounce_speed
+  start: 0x162C5
+  end: 0x162D9
+  size: 2
+- type: array
+  label: playerWalkAnimLeft
+  start: 0x162D9
+  end: 0x162E5
+  size: 2
+- type: array
+  label: playerWalkAnimRight
+  start: 0x162E5
+  end: 0x162F1
+  size: 2
+
+
 structs:
   enemy_object:
   - name: x
@@ -381,9 +424,46 @@ labels:
   show_pal_warning: 0xAE8
   show_logo: 0xBE0
   game_loop: 0xDF4
-  game_update_vram_animation: 0x430D
+  cutscene_next_level: 0x430D
   cutscene_intro: 0x4BE7
   unknown: 0x57DA
+  enemy_clear: 0xC9E7
+  game_update_vram_animation: 0xCAEB
+  game_wait_and_update_nametables: 0xCB79
+  pad_poll_trigger: 0xDC82
+  particles_clear: 0xFA62
+  update_nametables: 0xFFB4
+  setup_ingame_graphics: 0x11272
+  setup_palettes: 0x1132B
+  setup_hdma_gradient: 0x11453
+  set_background: 0x115D9
+  clear_nametables: 0x129C8
+  nmi_wait: 0x12A41
+  fade_screen: 0x12A6A
+  music_stop: 0x12CFD
+  music_play: 0x12D0E
+  sfx_play: 0x12D96
+  spc_load_music: 0x12E02
+  spc_setup: 0x12E3E
+  spc_load_data: 0x12E64
+  spc_volume: 0x1301C
+  spc_stereo: 0x13052
+  spc_command: 0x13068
+  init: 0x130F2
+  delay: 0x13321
+  oam_clear: 0x13339
+  oam_size: 0x13393
+  oam_spr: 0x135FD
+  nmi_handler: 0x13716
+  rand: 0x13782
+  memcpy: 0x15C2E
+  mempcpy: 0x15C4C
+  memmove: 0x15C71
+  memset: 0x15C9F
+  bzero: 0x15CB8
+  strcmp: 0x15CD2
+  strncmp: 0x15D0E
+  memcmp: 0x15D3D
 memory:
   r0: 0x0
   r0h: 0x2
