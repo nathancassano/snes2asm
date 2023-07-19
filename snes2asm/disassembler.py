@@ -449,17 +449,18 @@ class Disassembler:
 	def assembly(self):
 		code = []
 		bank = 0
-		# Ensure code is ordered
-		self.code.sort_keys()
 
 		if self.variables:
-			for variable, index in sorted((v,k) for (k,v) in self.variables.items()):
+			for index, variable in sorted(self.variables.items()):
 				code.append(".define %s $%x\n" % (variable, index))
 			code.append("\n")
 
 		for dec in self.support_decoders:
 			for pos, instr in dec.decode(self.cart):
 				code.append(instr.text()+"\n")
+
+		# Ensure code is ordered
+		self.code.sort_keys()
 
 		# Process each bank
 		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
@@ -1412,21 +1413,21 @@ class Disassembler:
 	def opBB(self):
 		return self.ins("tyx")
  
- 	# TCD
+ 	# TAD
 	def op5B(self):
-		return self.ins("tcd")
+		return self.ins("tad")
  
- 	# TDC
+ 	# TDA
 	def op7B(self):
-		return self.ins("tdc")
+		return self.ins("tda")
 
- 	# TCS
+ 	# TAS
 	def op1B(self):
-		return self.ins("tcs")
+		return self.ins("tas")
  
- 	# TSC
+ 	# TSA
 	def op3B(self):
-		return self.ins("tsc")
+		return self.ins("tsa")
  
  	# TRB
 	def op1C(self):

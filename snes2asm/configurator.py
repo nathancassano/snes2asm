@@ -13,7 +13,14 @@ class Configurator:
 		self.label_lookup = {}
 
 	def _validate(self):
-		pass
+		if 'memory' in self.config:
+			memory = self.config['memory']
+			for variable in memory.keys():
+				addr = memory[variable]
+				if addr > 0x2000 and addr < 0x7E0000:
+					memory.pop(variable)
+					print("Warning: Ignoring out of range memory entry '%s' at address 0x%X" % (variable, addr))
+					
 
 	def apply(self, disasm):
 
