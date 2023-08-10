@@ -27,7 +27,7 @@ graphics: *2bpp.chr *3bpp.chr *4bpp.chr *8bpp.chr
 	$(BMP2CHR) -b8 -o $@ $<
 
 $(COBJ): *.s
-	$(AS) -v -o $@ $<
+	$(AS) -x -v -o $@ $<
 
 $(ROM).smc: $(COBJ)
 	$(LD) -d -v -S linkfile $(ROM).smc
