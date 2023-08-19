@@ -470,6 +470,7 @@ class Disassembler:
 			else:
 				code.append(".ENDS\n\n.BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
 
+			# Loop through all the code in the bank range
 			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
 				if not self.no_label and addr in self.code_labels:
 					# Bank aliases
@@ -963,7 +964,7 @@ class Disassembler:
 
 	# JSR
 	def op22(self):
-		return self.jmp_abs_long("jsr")
+		return self.jmp_abs_long("jsl")
 
 	def op20(self):
 		return self.jmp_abs("jsr")

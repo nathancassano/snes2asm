@@ -13,6 +13,13 @@ class Decoder:
 		self.end = end
 		self.files = {}
 
+		if type(self.label) != str:
+				raise TypeError("Invalid value for label parameter: %s" % str(self.label))
+		if type(self.start) != int:
+				raise TypeError("Invalid value for start parameter: %s" % str(self.start))
+		if type(self.end) != int:
+				raise TypeError("Invalid value for end parameter: %s" % str(self.end))
+
 	def name(self):
 		return "%s%06x-%06x" % (self.__name__, self.start, self.end)
 
@@ -32,6 +39,7 @@ class Decoder:
 	def add_file(self, name, data):
 		self.files[name] = data
 
+	@staticmethod
 	def val(cart, pos, size=1):
 		if size == 2:
 			return cart[pos] + (cart[pos+1] << 8)
@@ -42,6 +50,7 @@ class Decoder:
 		else:
 			return cart[pos]
 
+	@staticmethod
 	def data_directive(size):
 		return ['.db', '.dw', '.dl', '.dd'][(size-1) & 0x3]
 
@@ -120,10 +129,10 @@ class TextDecoder(Decoder):
 				else:
 					out.append(chr(char))
 			output = ansi_escape("".join(out))
-			return (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, quote_escape(output)), preamble=label))
+			return (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, output), preamble=label))
 		else:
 			output = ansi_escape(str(input.decode()))
-			return (pos, Instruction('.db "%s"' % quote_escape(output), preamble=label))
+			return (pos, Instruction('.db "%s"' % output, preamble=label))
 
 class ArrayDecoder(Decoder):
 
@@ -308,10 +317,14 @@ class TileMapDecoder(Decoder):
 		self.gfx = gfx
 		self.width = width
 		self.height = int((self.end - self.start) / (width * 2))
+		self.encoding = encoding
+
+		if self.encoding != None and self.encoding not in ['rle', 'lzss']:
+			raise ValueError("Unsupported encoding %s" % self.encoding)
 
 	def decode(self, cart):
 		# Tilemap file
-		tilechr = "%s.tilechr" % self.label
+		tilebin = "%s.tilebin" % self.label
 		if type(self.gfx) == list:
 			gfx = [ g.filename() for g in self.gfx ]
 			palette = [ g.palette.filename() for g in self.gfx ]
@@ -319,19 +332,16 @@ class TileMapDecoder(Decoder):
 			gfx = self.gfx.filename()
 			palette = self.gfx.palette.filename()
 
-		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilechr': tilechr, 'gfx': gfx, 'palette': palette}
+		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilebin': tilebin, 'gfx': gfx, 'palette': palette}
+		if encoding != None:
+			tilemap['encoding'] = self.encoding
 		self.add_file("%s.tilemap" % self.label, yaml.dump(tilemap).encode('utf-8'))
 
 		# Tile character map file
-		self.add_file(tilechr, bytearray(cart[self.start:self.end]))
-		yield (self.start, Instruction(".INCBIN \"%s.tilechr\"" % self.label, preamble=self.label+":"))
-
+		self.add_file(tilebin, bytearray(cart[self.start:self.end]))
+		yield (self.start, Instruction(".INCBIN \"%s.tilebin\"" % self.label, preamble=self.label+":"))
 
 _ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}
 
 def ansi_escape(subject):
 	return ''.join([_ESCAPE_CHARS[c] if c in _ESCAPE_CHARS else c for c in subject])
-
-def quote_escape(subject):
-	return subject.replace("\\", "\\\\")
-

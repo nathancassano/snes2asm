@@ -91,7 +91,7 @@ class ProjectMaker:
 
 	def get_vector(self, address):
 		if address >= 0x8000 and self.disasm.valid_label(address - 0x8000) and not self.disasm.no_label:
-			return "L%06X" % (address - 0x8000)
+			return self.disasm.label_name(address - 0x8000)
 		else:
 			return "$%04X" % address
 

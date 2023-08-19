@@ -308,15 +308,15 @@ decoders:
   end: 0x15638
 - type: bin
   label: music_level1
-  start: 0x15638
-  end:   0x15742
+  start: 0x156a0
+  end: 0x15742
 - type: data
   label: music_level1_size
   start: 0x15742
-  end:   0x15744
+  end:   0x157AA
 - type: bin
   label: music_lose
-  start: 0x15744
+  start: 0x157AA
   end:   0x158A0
 - type: data
   label: music_lose_size
@@ -379,8 +379,6 @@ decoders:
   start: 0x162E5
   end: 0x162F1
   size: 2
-
-
 structs:
   enemy_object:
   - name: x
