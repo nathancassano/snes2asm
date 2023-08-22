@@ -77,8 +77,8 @@ class Cartridge:
 
 	def parse_header(self):
 		(self.make_code, self.game_code, self.fixed, self.expand_ram, self.special_version, self.sub_type, self.title, self.map_mode, self.cart_type, self.rom_size, self.sram_size, self.country, self.license_code, self.version, self.comp_check, self.check_sum) = struct.unpack("H4s7s3b21s7B2H", self.data[self.header:self.header+48])
-		self.game_code = str(self.game_code.decode())
-		self.title = str(self.title.decode())
+		self.game_code = self.game_code
+		self.title = self.title
 		(self.nvec_unused, self.nvec_cop, self.nvec_brk, self.nvec_abort, self.nvec_nmi, self.nvec_reset, self.nvec_irq, self.evec_unused, self.evec_cop, self.evec_unused2, self.evec_abort, self.evec_nmi, self.evec_reset, self.evec_irq) = struct.unpack("I6HI6H", self.data[self.header+48:self.header+80])
 
 	def map_type(self):

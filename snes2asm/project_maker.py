@@ -4,6 +4,7 @@ import os
 import shutil
 from string import Template
 from snes2asm import template as template_path
+from snes2asm.decoder import ansi_escape
 
 class ProjectMaker:
 
@@ -58,13 +59,13 @@ class ProjectMaker:
 		else:
 			rom_map = 'HIROM' if self.cart.hirom else 'LOROM'
 		hdr = temp.substitute(
-			title=self.cart.title[0:21].ljust(21),
+			title=ansi_escape(self.cart.title[0:21].ljust(21)),
 			bank_size="%06X" % self.cart.bank_size(),
 			slot_size="0" if self.cart.hirom else "8000",
-			rom_banks=len(self.cart.data) / self.cart.bank_size(),
+			rom_banks=self.cart.bank_count(),
 			rom_speed=rom_speed,
 			rom_map=rom_map,
-			game_code=self.cart.game_code,
+			game_code=ansi_escape(self.cart.game_code),
 			cart_type="%02X" % self.cart.cart_type,
 			rom_size="%02X" % self.cart.rom_size,
 			sram_size="%02X" % self.cart.sram_size,

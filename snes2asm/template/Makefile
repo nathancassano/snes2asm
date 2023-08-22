@@ -26,6 +26,9 @@ graphics: *2bpp.chr *3bpp.chr *4bpp.chr *8bpp.chr
 %8bpp.chr: %8bpp.bmp
 	$(BMP2CHR) -b8 -o $@ $<
 
+%.s: *.asm
+	touch $@
+
 $(COBJ): *.s
 	$(AS) -x -v -o $@ $<
 

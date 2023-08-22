@@ -37,7 +37,6 @@ class Configurator:
 				if decode_conf['type'] not in self.decoders_enabled:
 					print("Unknown decoder type %s. Skipping." % decode_conf['type'])
 					continue
-
 				self.apply_decoder(disasm, decode_conf)
 
 		if 'labels' in self.config:
@@ -61,6 +60,15 @@ class Configurator:
 
 		if label in self.label_lookup:
 			raise ValueError("Duplicate label %s" % label)
+
+		# Check if decoder transgresses bank boundry
+		bank_size = disasm.cart.bank_size()
+		if 'start' in decode_conf and 'end' in decode_conf:
+			if decode_conf['start'] > decode_conf['end']:
+				raise ValueError("Decoder %s invalid start and end positions" % label)
+			if decode_conf['start'] // bank_size != (decode_conf['end']-1) // bank_size:
+				raise ValueError("Decoder %s crosses bank boundry at positions 0x%x to 0x%x" % 
+					(label, decode_conf['start'], decode_conf['end']))
 
 		# Replace decoder parameter references with actual object instances or sub decoder
 		# {palette: 'sprites1_pal'} => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}

@@ -106,7 +106,7 @@ class TextDecoder(Decoder):
 			for index_pos in range(self.index.start, self.index.end, self.index.size):
 				if index_pos == self.index.start:
 					continue
-				offset = self.start + Decoder.val(cart, index_pos)
+				offset = self.start + Decoder.val(cart, index_pos, self.index.size)
 				if offset >=  self.end:
 					print("TextDecoder: %s skipping out of range index %d" % (self.label, index))
 					continue
@@ -122,16 +122,21 @@ class TextDecoder(Decoder):
 
 	def text(self, pos, input, label):
 		if self.translation:
-			out = []
-			for char in input:
-				if char in self.translation.table:
-					out.append(self.translation.table[char])
-				else:
-					out.append(chr(char))
-			output = ansi_escape("".join(out))
-			return (pos, Instruction('.STRINGMAP %s "%s"' % (self.translation.label, output), preamble=label))
+			# Break STRINGMAP directives into multiple parts if needed
+			# since there is a bug with large buffers in WLA-DX
+			parts = []
+			for output_start in range(0, len(input), 256):
+				out = []
+				output_end = min(output_start+256,len(input))
+				for char in input[output_start:output_end]:
+					if char in self.translation.table:
+						out.append(self.translation.table[char])
+					else:
+						out.append(_ESCAPE_CHARS[char])
+				parts.append('.STRINGMAP %s "%s"' % (self.translation.label, "".join(out)))
+			return (pos, Instruction("\n".join(parts), preamble=label))
 		else:
-			output = ansi_escape(str(input.decode()))
+			output = ansi_escape(input)
 			return (pos, Instruction('.db "%s"' % output, preamble=label))
 
 class ArrayDecoder(Decoder):
@@ -182,7 +187,8 @@ class IndexDecoder(Decoder):
 			if offset + self.parent.start > self.parent.end:
 				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index'))
 			else:
-				yield(pos, Instruction('%s %s_%i - %s_0' % (instr, self.parent.label, index, self.parent.label)))
+				yield(pos, Instruction('%s %s_%i - %s_0' % (instr, self.parent.label, index, self.parent.label), 
+					preamble="%s_%i:" % (self.label, index)))
 			index = index + 1
 			pre = None
 
@@ -304,8 +310,14 @@ class GraphicDecoder(Decoder):
 class TranlationMap(Decoder):
 	def __init__(self, label, table):
 		Decoder.__init__(self, label)
+		self.table = table
+		# Fill is escape characters
+		for i, k in {0: '\\0', 10: '[n]', 13: '[r]'}.items():
+			if i not in self.table:
+				self.table[i] = k
+
 		self.table = { i: table[i] if i in table else chr(i) for i in range(0,256)}
-		script = "\n".join(["%02x=%s" % (hex,ansi_escape(text)) for hex,text in self.table.items()])
+		script = "\r\n".join(["%02x=%s" % (hex,text) for hex,text in self.table.items()])
 		self.add_file("%s.tbl" % self.label, script.encode('utf-8'))
 
 	def decode(self, cart):
@@ -333,7 +345,7 @@ class TileMapDecoder(Decoder):
 			palette = self.gfx.palette.filename()
 
 		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilebin': tilebin, 'gfx': gfx, 'palette': palette}
-		if encoding != None:
+		if self.encoding != None:
 			tilemap['encoding'] = self.encoding
 		self.add_file("%s.tilemap" % self.label, yaml.dump(tilemap).encode('utf-8'))
 
@@ -341,7 +353,11 @@ class TileMapDecoder(Decoder):
 		self.add_file(tilebin, bytearray(cart[self.start:self.end]))
 		yield (self.start, Instruction(".INCBIN \"%s.tilebin\"" % self.label, preamble=self.label+":"))
 
-_ESCAPE_CHARS = {'\t': '\\t', '\n': '\\n', '\r': '\\r', '\x0b': '\\x0b', '\x0c': '\\x0c', '"': '\\"', '\x00': '\\' + '0'}
+_ESCAPE_CHARS = ['\\' + '0', '\\x01', '\\x02', '\\x03', '\\x04', '\\x05', '\\x06', '\\x07', '\\x08', '\\t', '\\n', '\\x0b', '\\x0c', '\\r', '\\x0e', '\\x0f', '\\x10', '\\x11', '\\x12', '\\x13', '\\x14', '\\x15', '\\x16', '\\x17', '\\x18', '\\x19', '\\x1a', '\\x1b', '\\x1c', '\\x1d', '\\x1e', '\\x1f', ' ', '!', '\\"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', '\\', ']', '^', '_', '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', '\x7f', '\\x80', '\\x81', '\\x82', '\\x83', '\\x84', '\\x85', '\\x86', '\\x87', '\\x88', '\\x89', '\\x8a', '\\x8b', '\\x8c', '\\x8d', '\\x8e', '\\x8f', '\\x90', '\\x91', '\\x92', '\\x93', '\\x94', '\\x95', '\\x96', '\\x97', '\\x98', '\\x99', '\\x9a', '\\x9b', '\\x9c', '\\x9d', '\\x9e', '\\x9f', '\\xa0', '\\xa1', '\\xa2', '\\xa3', '\\xa4', '\\xa5', '\\xa6', '\\xa7', '\\xa8', '\\xa9', '\\xaa', '\\xab', '\\xac', '\\xad', '\\xae', '\\xaf', '\\xb0', '\\xb1', '\\xb2', '\\xb3', '\\xb4', '\\xb5', '\\xb6', '\\xb7', '\\xb8', '\\xb9', '\\xba', '\\xbb', '\\xbc', '\\xbd', '\\xbe', '\\xbf', '\\xc0', '\\xc1', '\\xc2', '\\xc3', '\\xc4', '\\xc5', '\\xc6', '\\xc7', '\\xc8', '\\xc9', '\\xca', '\\xcb', '\\xcc', '\\xcd', '\\xce', '\\xcf', '\\xd0', '\\xd1', '\\xd2', '\\xd3', '\\xd4', '\\xd5', '\\xd6', '\\xd7', '\\xd8', '\\xd9', '\\xda', '\\xdb', '\\xdc', '\\xdd', '\\xde', '\\xdf', '\\xe0', '\\xe1', '\\xe2', '\\xe3', '\\xe4', '\\xe5', '\\xe6', '\\xe7', '\\xe8', '\\xe9', '\\xea', '\\xeb', '\\xec', '\\xed', '\\xee', '\\xef', '\\xf0', '\\xf1', '\\xf2', '\\xf3', '\\xf4', '\\xf5', '\\xf6', '\\xf7', '\\xf8', '\\xf9', '\\xfa', '\\xfb', '\\xfc', '\\xfd', '\\xfe', '\\xff']
+
 
 def ansi_escape(subject):
-	return ''.join([_ESCAPE_CHARS[c] if c in _ESCAPE_CHARS else c for c in subject])
+	if type(subject) == str:
+		return ''.join([_ESCAPE_CHARS[ord(c)] for c in subject])
+	else:
+		return ''.join([_ESCAPE_CHARS[c] for c in subject])
