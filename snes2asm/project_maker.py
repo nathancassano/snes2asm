@@ -88,7 +88,7 @@ class ProjectMaker:
 		filename = "%s/hdr.asm" % dir
 		f = open(filename, 'w')
 		f.write(hdr)
-		f.close
+		f.close()
 
 	def get_vector(self, address):
 		if address >= 0x8000 and self.disasm.valid_label(address - 0x8000) and not self.disasm.no_label:
