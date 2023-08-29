@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import unittest
+import os
 from snes2asm.bitmap import *
 
 class TileTest(unittest.TestCase):
 
 	def test_readbmp(self):
-		b = BitmapIndex.read("snes2asm/tests/test.bmp")
+		b = BitmapIndex.read(os.path.join(os.path.dirname(__file__), "test.bmp"))
 
 		self.assertEqual(70, b._bfOffBits)
 		self.assertEqual(4, b._bcWidth)
@@ -39,6 +40,7 @@ class TileTest(unittest.TestCase):
 					b.setPixel(x,y,1)
 
 		b.write("output128x64.bmp")
+		os.unlink("output128x64.bmp")
 
 
 if __name__ == '__main__':

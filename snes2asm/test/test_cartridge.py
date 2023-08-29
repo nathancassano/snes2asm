@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 
 import unittest
+import os
 from snes2asm.cartridge import Cartridge
 
 class CartridgeTest(unittest.TestCase):
 	
 	def setUp(self):
 		self.cart = Cartridge()
-		self.cart.open('snes2asm/tests/classickong.smc')
+		self.cart.open(os.path.join(os.path.dirname(__file__), 'classickong.smc'))
 
 	def test_headers(self):
 
