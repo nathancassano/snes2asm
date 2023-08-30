@@ -11,7 +11,7 @@ class Cartridge:
 		self.fastrom = False
 		self.header = 0
 
-    # Data indexing and slicing
+	# Data indexing and slicing
 	def __getitem__(self, i):
 		if isinstance(i, slice):
 			return self.data[i.start:i.stop]
@@ -25,7 +25,7 @@ class Cartridge:
 		file.close()
 		self.set(data)
 
-    # Assign cart data
+	# Assign cart data
 	def set(self, data):
 
 		self.data = data
@@ -85,7 +85,7 @@ class Cartridge:
 		type = ["ROM", "ROM+RAM", "ROM+RAM+BAT"]
 		return type[self.cart_type]
 
-    # Translate rom position to address
+	# Translate rom position to address
 	def address(self, i):
 		if self.extended:
 			# TODO

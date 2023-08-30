@@ -446,9 +446,8 @@ class Disassembler:
 			line = '.db ' + ', '.join(("$%02X" % x) for x in self.cart[end - remaining : end])
 			self.code[y] = self.ins(line)
 
-	def assembly(self):
+	def support_code(self):
 		code = []
-		bank = 0
 
 		if self.variables:
 			for index, variable in sorted(self.variables.items()):
@@ -462,30 +461,29 @@ class Disassembler:
 		# Ensure code is ordered
 		self.code.sort_keys()
 
-		# Process each bank
-		for addr in range(0, self.cart.size(), self.cart.bank_size() ):
-			print("Bank %d" % bank)
-			if bank == 0:
-				code.append(".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
-			else:
-				code.append(".ENDS\n\n.BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
+		return "".join(code)
 
-			# Loop through all the code in the bank range
-			for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
-				if not self.no_label and addr in self.code_labels:
-					# Bank aliases
-					if addr in self.code_label_bank_aliases:
-						bank_set = self.code_label_bank_aliases[addr]
-						for bank_alias in bank_set:
-							base = (bank_alias >> 16) & 0xE0
-							bank_label = bank_alias | (addr & 0xFFFF)
-							code.append(".BASE $%02X\nL%06X:\n" % (base, bank_label))
-						code.append(".BASE $00\n")
-					# Label
-					code.append("%s:\n" % self.code_labels[addr])
-				code.append(instr.text() + "\n")
+	def bank_code(self, bank):
+		print("Bank %d" % bank)
 
-			bank = bank + 1
+		code = []
+		code.append(".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
+
+		addr = bank * self.cart.bank_size()
+		# Loop through all the code in the bank range
+		for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
+			if not self.no_label and addr in self.code_labels:
+				# Bank aliases
+				if addr in self.code_label_bank_aliases:
+					bank_set = self.code_label_bank_aliases[addr]
+					for bank_alias in bank_set:
+						base = (bank_alias >> 16) & 0xE0
+						bank_label = bank_alias | (addr & 0xFFFF)
+						code.append(".BASE $%02X\nL%06X:\n" % (base, bank_label))
+					code.append(".BASE $00\n")
+				# Label
+				code.append("%s:\n" % self.code_labels[addr])
+			code.append(instr.text() + "\n")
 
 		code.append(".ENDS\n")
 		return "".join(code)
