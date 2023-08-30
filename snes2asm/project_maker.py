@@ -18,13 +18,23 @@ class ProjectMaker:
 			os.mkdir(dir)
 
 		self.create_header(dir)
+		self.bank_code(dir)
 		self.copy_files(dir)
 
-		# Write main assembly code
-		filename = "%s/game.asm" % dir
-		f = open(filename, 'wb')
-		f.write(self.disasm.assembly().encode('utf-8'))
+		# Write support code
+		filename = "%s/constants.asm" % dir
+		f = open(filename, 'w')
+		f.write(self.disasm.support_code())
 		f.close()
+
+		# Write bank assembly code
+		for bank in range(0, self.cart.bank_count()):
+			code = self.disasm.bank_code(bank)
+			filename = "%s/bank%d.asm" % (dir, bank)
+			f = open(filename, 'w')
+			f.write(code)
+			f.close()
+
 
 		# Write decoder files
 		for decoder in self.disasm.decoders.items():
@@ -44,9 +54,21 @@ class ProjectMaker:
 				f.close()
 
 	def copy_files(self, dir):
-		files = ['Makefile','snes.asm', 'main.s', 'linkfile']
+		files = ['Makefile','snes.asm', 'linkfile']
 		for f in files:
 			shutil.copyfile("%s/%s" % (template_path.__path__[0], f), "%s/%s" % (dir, f) )
+
+	def bank_code(self, dir):
+		f = open("%s/main.s" % template_path.__path__[0])
+		main_temp = f.read()
+		f.close()
+		temp = PercentTemplate(main_temp)
+		bank_includes = "\n".join([".include \"bank%d.asm\"" % i for i in range(0, self.cart.bank_count())])
+		main = temp.substitute(banks=bank_includes)
+		f = open("%s/main.s" % dir, 'w')
+		f.write(main)
+		f.close()
+
 
 	def create_header(self, dir):
 		f = open("%s/hdr.asm" % template_path.__path__[0])
