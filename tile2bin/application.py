@@ -34,18 +34,19 @@ class TileDocument:
 	def __init__(self):
 		self.tile_map_entry = []
 		self.palette_entry = []
-		self.filename = None
-		self.working_dir = None
+		self.filename = 'Untitled'
+		self.working_dir = os.getcwd()
 
 		self.name = ''
 		self.width = 0
 		self.height = 0
-		self.tilechr = ''
+		self.tilechr = 'Untitled.chr'
 		self.gfx = ''
 		self.tilesize = 8
-		self.palette = ''
+		self.palette = 'Untitled.pal'
 		self.palette_offset = 0
 		self.mode7 = False
+		self.changed = True
 
 	def loadYaml(self, filename):
 		try:
@@ -138,8 +139,20 @@ class TileDocument:
 			f.write(struct.pack('<h', bgr565))
 		f.close()
 
+	def save(self):
+		self.savePalette()
+		self.saveChr()
 
 class App:
 	def __init__(self, args):
 		self.docs = []
+
+	def newDoc(self):
+		# TODO type
+		doc = TileDocument()
+		doc.filename = 'Untitled' + str(len(self.docs))
+		self.docs.append(doc)
+
+	def removeDoc(self, index):
+		self.docs.remove(self.docs[index])
 
