@@ -65,9 +65,7 @@ class Window(QMainWindow):
 		self.fileMenu.addAction(self.openAct)
 		self.fileMenu.addAction(self.saveAct)
 		self.fileMenu.addAction(self.saveAsAct)
-		self.fileMenu.addSeparator()
-		action = self.fileMenu.addAction("Switch layout direction")
-		#action.triggered.connect(self.switchLayoutDirection)
+		#self.fileMenu.addSeparator()
 		self.fileMenu.addAction(self.exitAct)
 
 		self.editMenu = self.menuBar().addMenu("&Edit")
@@ -110,10 +108,20 @@ class Window(QMainWindow):
 		#self.viewMenu.addAction(dock.toggleViewAction())
 
 	def closeTab(self, index):
-		# TODO prompt to save
+		answer = QMessageBox.StandardButton.Yes
+		if self.app.docs[index].changed:
+			answer = QMessageBox.question(self, 'Confirmation', 'Save changes?',
+				QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+			)
+		if answer == QMessageBox.StandardButton.Yes:
+			self.app.docs[index].save()
+
+		self.app.removeDoc(index)
 		self.tabs.removeTab(index)
 
 	def newFile(self):
+		# TODO prompt detail dialog
+		self.app.newDoc()
 		self.tabs.addTab(TileMapView(128, 128), "test")
 
 	def open(self):
