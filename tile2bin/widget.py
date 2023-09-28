@@ -148,11 +148,11 @@ class TileView(QGraphicsView):
 		self.scene = QGraphicsScene(0, 0, width, height)
 		super().__init__(self.scene)
 
-class TileMapView(TileView):
+class TileSetView(TileView):
 	def __init__(self, width, height):
 		super().__init__(width, height)
 
-class TileSetView(TileView):
+class TileMapView(TileView):
 	def __init__(self, width, height):
 		super().__init__(width, height)
 
