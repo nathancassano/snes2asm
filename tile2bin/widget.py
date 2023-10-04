@@ -32,7 +32,6 @@ class Window(QMainWindow):
 		self.createMenus()
 		self.createToolBars()
 
-
 		self.panelHidden = False
 
 	def createActions(self):
@@ -121,22 +120,40 @@ class Window(QMainWindow):
 
 	def newFile(self):
 		# TODO prompt detail dialog
-		self.app.newDoc()
-		self.tabs.addTab(TileMapView(128, 128), "test")
+		doc = TileDocument()
+		self.addDoc(doc)
 
+	def addDoc(self, doc):
+		self.app.addDoc(doc)
+		self.tabs.addTab(TileMapView(doc.pixWidth(), doc.pixHeight()), doc.title())
+
+	def curDoc(self):
+		index = self.tabs.currentIndex()
+		return self.app.docs[index]
+	
 	def open(self):
 		fileName, _ = QFileDialog.getOpenFileName(self, "Open Tile Map", '', "Tilemap (*.tilemap);;All Files (*)")
 		if fileName:
-			self.newFile()
-			#	self.statusBar().showMessage("File loaded", 2000)
+			doc = TileDocument()
+			try:
+				doc.loadYaml(fileName)
+			except Exception as e:
+				QMessageBox.question(self, 'File', 'Error: %s' % e.message)
+				return
+				
+			self.addDoc(doc)
+			#self.statusBar().showMessage("File loaded", 2000)
 
 	def save(self):
-		pass
-		#	self.statusBar().showMessage("File saved", 2000)
+		self.curDoc().save()
+		#self.statusBar().showMessage("File saved", 2000)
 
 	def saveAs(self):
-		pass
-		#	self.statusBar().showMessage("File saved", 2000)
+		fileName = QFileDialog.getSaveFileName(self, "Save Tile Map", self.curDoc().filepath(), "Tilemap (*.tilemap);;All Files (*)")
+		if fileName:
+			self.app.working_dir = os.path.dirname(os.path.realpath(fileName))
+			self.app.filename = os.path.basename(fileName)
+			self.save()
 
 	def cut(self):
 		pass

@@ -37,9 +37,8 @@ class TileDocument:
 		self.filename = 'Untitled'
 		self.working_dir = os.getcwd()
 
-		self.name = ''
-		self.width = 0
-		self.height = 0
+		self.width = 64
+		self.height = 64
 		self.tilechr = 'Untitled.chr'
 		self.gfx = ''
 		self.tilesize = 8
@@ -48,11 +47,14 @@ class TileDocument:
 		self.mode7 = False
 		self.changed = True
 
+	def pixWidth(self):
+		return self.width * self.tilesize
+
+	def pixHeight(self):
+		return self.height * self.tilesize
+		
 	def loadYaml(self, filename):
-		try:
-			meta_format = yaml.load(filename)
-		except Exception as err:
-			pass
+		meta_format = yaml.load(filename)
 
 		# Format validation and assignment
 		for prop, value in meta_format.items():
@@ -63,8 +65,14 @@ class TileDocument:
 			else:
 				print("Ignoring file property named '%s'", prop)
 
-		self.filename = filename
-		self.working_dir = os.path.dirname(os.path.realpath(self.filename))
+		self.working_dir = os.path.dirname(os.path.realpath(filename))
+		self.filename = os.path.basename(filename)
+
+	def title(self):
+		return self.filename.replace('.tilemap', '')
+
+	def filepath(self):
+		return os.path.join(self.working_dir, self.filename)
 
 	def _chrFileName(self):
 		return os.path.join(self.working_dir, self.tilechr)
@@ -147,10 +155,7 @@ class App:
 	def __init__(self, args):
 		self.docs = []
 
-	def newDoc(self):
-		# TODO type
-		doc = TileDocument()
-		doc.filename = 'Untitled' + str(len(self.docs))
+	def addDoc(self, doc):
 		self.docs.append(doc)
 
 	def removeDoc(self, index):
