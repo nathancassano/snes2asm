@@ -8,6 +8,8 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QIcon, QKeySequence
 from PyQt5.QtWidgets import *
 
+from tile2bin.application import *
+
 class Window(QMainWindow):
 	def __init__(self, app):
 		super().__init__()
@@ -51,12 +53,7 @@ class Window(QMainWindow):
 
 		self.pasteAct = QAction(QIcon('images/paste.png'), "&Paste", self, shortcut=QKeySequence.Paste, statusTip="Paste the clipboard's contents into the current selection", triggered=self.paste)
 
-		self.separatorAct = QAction(self)
-		self.separatorAct.setSeparator(True)
-
 		self.aboutAct = QAction("&About", self, statusTip="Show the application's About box", triggered=self.about)
-
-		self.aboutQtAct = QAction("About &Qt", self, statusTip="Show the Qt library's About box", triggered=QApplication.instance().aboutQt)
 
 	def createMenus(self):
 		self.fileMenu = self.menuBar().addMenu("&File")
@@ -64,7 +61,7 @@ class Window(QMainWindow):
 		self.fileMenu.addAction(self.openAct)
 		self.fileMenu.addAction(self.saveAct)
 		self.fileMenu.addAction(self.saveAsAct)
-		#self.fileMenu.addSeparator()
+		self.fileMenu.addSeparator()
 		self.fileMenu.addAction(self.exitAct)
 
 		self.editMenu = self.menuBar().addMenu("&Edit")
@@ -74,14 +71,9 @@ class Window(QMainWindow):
 
 		self.windowMenu = self.menuBar().addMenu("&Window")
 		self.windowMenu.addAction(self.tileAct)
-		#self.updateWindowMenu()
-		#self.windowMenu.aboutToShow.connect(self.updateWindowMenu)
-
-		self.menuBar().addSeparator()
 
 		self.helpMenu = self.menuBar().addMenu("&Help")
 		self.helpMenu.addAction(self.aboutAct)
-		self.helpMenu.addAction(self.aboutQtAct)
 
 	def createToolBars(self):
 		self.fileToolBar = self.addToolBar("File")
@@ -95,8 +87,10 @@ class Window(QMainWindow):
 		dock.setAllowedAreas(Qt.LeftDockWidgetArea | Qt.RightDockWidgetArea)
 
 		docklayout = QVBoxLayout()
-		docklayout.addWidget(TileSetView(128, 128))
-		docklayout.addWidget(PaletteView())
+		self.tileSetView = TileSetView(128, 128)
+		docklayout.addWidget(self.tileSetView)
+		self.paletteView = PaletteView()
+		docklayout.addWidget(self.paletteView)
 
 		container = QWidget()
 		container.setLayout(docklayout)
@@ -117,6 +111,14 @@ class Window(QMainWindow):
 
 		self.app.removeDoc(index)
 		self.tabs.removeTab(index)
+		self.setDocEnabled(len(self.app.docs) > 0)
+
+	def setDocEnabled(self, enabled):
+		self.saveAct.setEnabled(enabled)
+		self.saveAsAct.setEnabled(enabled)
+		self.cutAct.setEnabled(enabled)
+		self.copyAct.setEnabled(enabled)
+		self.pasteAct.setEnabled(enabled)
 
 	def newFile(self):
 		# TODO prompt detail dialog
@@ -126,6 +128,7 @@ class Window(QMainWindow):
 	def addDoc(self, doc):
 		self.app.addDoc(doc)
 		self.tabs.addTab(TileMapView(doc.pixWidth(), doc.pixHeight()), doc.title())
+		self.setDocEnabled(True)
 
 	def curDoc(self):
 		index = self.tabs.currentIndex()
@@ -133,7 +136,7 @@ class Window(QMainWindow):
 	
 	def open(self):
 		fileName, _ = QFileDialog.getOpenFileName(self, "Open Tile Map", '', "Tilemap (*.tilemap);;All Files (*)")
-		if fileName:
+		if len(fileName) > 0:
 			doc = TileDocument()
 			try:
 				doc.loadYaml(fileName)
@@ -149,8 +152,8 @@ class Window(QMainWindow):
 		#self.statusBar().showMessage("File saved", 2000)
 
 	def saveAs(self):
-		fileName = QFileDialog.getSaveFileName(self, "Save Tile Map", self.curDoc().filepath(), "Tilemap (*.tilemap);;All Files (*)")
-		if fileName:
+		fileName, _ = QFileDialog.getSaveFileName(self, "Save Tile Map", self.curDoc().filepath(), "Tilemap (*.tilemap);;All Files (*)")
+		if len(fileName) > 0:
 			self.app.working_dir = os.path.dirname(os.path.realpath(fileName))
 			self.app.filename = os.path.basename(fileName)
 			self.save()
