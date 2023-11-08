@@ -1,5 +1,4 @@
-
-from io import BytesIO
+# -*- coding: utf-8 -*-
 
 def compress(data):
 	return aplib_compress(data).do()
@@ -11,42 +10,41 @@ class aplib_compress:
 	"""
 	aplib compression is based on lz77
 	"""
-	def __init__(self, data, length=None):
+	def __init__(self, data):
+		self._in = data
+		self._tagsize = 1
+		self._tag = 0
+		self._tagoffset = -1
+		self._maxbit = (self._tagsize * 8) - 1
+		self._curbit = 0
+		self._isfirsttag = True
+		self._offset = 0
+		self._lastoffset = 0
+		self._pair = True
 		self.out = bytearray()
-		self.__tagsize = 1
-		self.__tag = 0
-		self.__tagoffset = -1
-		self.__maxbit = (self.__tagsize * 8) - 1
-		self.__curbit = 0
-		self.__isfirsttag = True
-		self.__in = BytesIO(data)
-		self.__length = length if length is not None else len(data)
-		self.__offset = 0
-		self.__lastoffset = 0
-		self.__pair = True
 
 	def getdata(self):
-		"""builds an output string of what's currently compressed:
+		"""builds an output array of what's currently compressed:
 		currently output bit + current tag content"""
-		tagstr = int2lebin(self.__tag, self.__tagsize)
-		return modifybytearray(self.out, tagstr, self.__tagoffset)
+		tagstr = int2lebin(self._tag, self._tagsize)
+		return modifybytearray(self.out, tagstr, self._tagoffset)
 
 	def write_bit(self, value):
 		"""writes a bit, make space for the tag if necessary"""
-		if self.__curbit != 0:
-			self.__curbit -= 1
+		if self._curbit != 0:
+			self._curbit -= 1
 		else:
-			if self.__isfirsttag:
-				self.__isfirsttag = False
+			if self._isfirsttag:
+				self._isfirsttag = False
 			else:
 				self.out = self.getdata()
-			self.__tagoffset = len(self.out)
-			self.out += bytearray([0] * self.__tagsize)
-			self.__curbit = self.__maxbit
-			self.__tag = 0
+			self._tagoffset = len(self.out)
+			self.out += bytearray([0] * self._tagsize)
+			self._curbit = self._maxbit
+			self._tag = 0
 
 		if value:
-			self.__tag |= (1 << self.__curbit)
+			self._tag |= (1 << self._curbit)
 
 	def write_bitstring(self, s):
 		"""write a string of bits"""
@@ -69,116 +67,107 @@ class aplib_compress:
 			self.write_bit(value & (1 << i))
 		self.write_bit(0)
 
-	def __literal(self, marker=True):
+	def _literal(self, marker=True):
 		if marker:
 			self.write_bit(0)
-		self.write_byte(self.__in.getvalue()[self.__offset])
-		self.__offset += 1
-		self.__pair = True
+		self.write_byte(self._in[self._offset])
+		self._offset += 1
+		self._pair = True
 
-	def __block(self, offset, length):
+	def _block(self, offset, length):
 		self.write_bitstring("10")
 
 		# if the last operations were literal or single byte
 		# and the offset is unchanged since the last block copy
 		# we can just store a 'null' offset and the length
-		if self.__pair and self.__lastoffset == offset:
-			self.write_variablenumber(2)	# 2-
+		if self._pair and self._lastoffset == offset:
+			self.write_variablenumber(2)
 			self.write_variablenumber(length)
 		else:
 			high = (offset >> 8) + 2
-			if self.__pair:
+			if self._pair:
 				high += 1
 			self.write_variablenumber(high)
 			low = offset & 0xFF
 			self.write_byte(low)
 			self.write_variablenumber(length - lengthdelta(offset))
-		self.__offset += length
-		self.__lastoffset = offset
-		self.__pair = False
+		self._offset += length
+		self._lastoffset = offset
+		self._pair = False
 
-	def __shortblock(self, offset, length):
+	def _shortblock(self, offset, length):
 		self.write_bitstring("110")
 		b = (offset << 1 ) + (length - 2)
 		self.write_byte(b)
-		self.__offset += length
-		self.__lastoffset = offset
-		self.__pair = False
+		self._offset += length
+		self._lastoffset = offset
+		self._pair = False
 
-	def __singlebyte(self, offset):
+	def _singlebyte(self, offset):
 		self.write_bitstring("111")
 		self.write_fixednumber(offset, 4)
-		self.__offset += 1
-		self.__pair = True
+		self._offset += 1
+		self._pair = True
 
-	def __end(self):
+	def _end(self):
 		self.write_bitstring("110")
 		self.write_byte(0)
 
 	def do(self):
-		self.__literal(False)
-		while self.__offset < self.__length:
-			offset, length = find_longest_match(self.__in.getvalue()[:self.__offset],
-				self.__in.getvalue()[self.__offset:])
+		self._literal(False)
+		while self._offset < len(self._in):
+			offset, length = find_longest_match(self._in[:self._offset], self._in[self._offset:])
 			if length == 0:
-				c = self.__in.getvalue()[self.__offset]
+				c = self._in[self._offset]
 				if c == 0:
-					self.__singlebyte(0)
+					self._singlebyte(0)
 				else:
-					self.__literal()
+					self._literal()
 			elif length == 1 and 0 <= offset < 16:
-				self.__singlebyte(offset)
+				self._singlebyte(offset)
 			elif 2 <= length <= 3 and 0 < offset <= 127:
-				self.__shortblock(offset, length)
+				self._shortblock(offset, length)
 			elif 3 <= length and 2 <= offset:
-				self.__block(offset, length)
+				self._block(offset, length)
 			else:
-				self.__literal()
-		self.__end()
+				self._literal()
+		self._end()
 		return self.getdata()
 
 class aplib_decompress:
 	def __init__(self, data):
-		self.__curbit = 0
-		self.__offset = 0
-		self.__tag = None
-		self.__tagsize = 1
-		self.__in = BytesIO(data)
+		self._curbit = 0
+		self._offset = 0
+		self._tag = None
+		self._tagsize = 1
+		self._in = data
 		self.out = bytearray()
 
-		self.__pair = True	# paired sequence
-		self.__lastoffset = 0
-		self.__functions = [
-			self.__literal,
-			self.__block,
-			self.__shortblock,
-			self.__singlebyte]
-
-	def getoffset(self):
-		"""return the current byte offset"""
-		return self.__offset
+		self._pair = True	# paired sequence
+		self._lastoffset = 0
+		self._functions = [self._literal, self._block, self._shortblock, self._singlebyte]
 
 	def read_bit(self):
 		"""read next bit from the stream, reloads the tag if necessary"""
-		if self.__curbit != 0:
-			self.__curbit -= 1
+		if self._curbit != 0:
+			self._curbit -= 1
 		else:
-			self.__curbit = (self.__tagsize * 8) - 1
-			self.__tag = self.read_byte()
-			for i in range(self.__tagsize - 1):
-				self.__tag += self.read_byte() << (8 * (i + 1))
+			self._curbit = (self._tagsize * 8) - 1
+			self._tag = self.read_byte()
+			for i in range(self._tagsize - 1):
+				self._tag += self.read_byte() << (8 * (i + 1))
 
-		bit = (self.__tag >> ((self.__tagsize * 8) - 1)) & 0x01
-		self.__tag <<= 1
+		bit = (self._tag >> ((self._tagsize * 8) - 1)) & 0x01
+		self._tag <<= 1
 		return bit
 
 	def is_end(self):
-		return self.__offset == len(self.__in.getvalue()) and self.__curbit == 1
+		return self._offset == len(self._in) and self._curbit == 1
 
 	def read_byte(self):
 		"""read next byte from the stream"""
-		result = self.__in.read(1)[0]
-		self.__offset += 1
+		result = self._in[self._offset]
+		self._offset += 1
 		return result
 
 	def read_fixednumber(self, nbbit, init=0):
@@ -198,10 +187,10 @@ class aplib_decompress:
 			result = (result << 1) + self.read_bit()
 		return result
 
-	def read_setbits(self, max_, set_=1):
+	def read_setbits(self):
 		"""read bits as long as their set or a maximum is reached"""
 		result = 0
-		while result < max_ and self.read_bit() == set_:
+		while result < 3 and self.read_bit() == 1:
 			result += 1
 		return result
 
@@ -215,52 +204,52 @@ class aplib_decompress:
 		else:
 			self.out.append(value)
 
-	def __literal(self):
+	def _literal(self):
 		self.read_literal()
-		self.__pair = True
+		self._pair = True
 		return False
 
-	def __block(self):
+	def _block(self):
 		b = self.read_variablenumber()	# 2-
-		if b == 2 and self.__pair :	# reuse the same offset
-			offset = self.__lastoffset
+		if b == 2 and self._pair :	# reuse the same offset
+			offset = self._lastoffset
 			length = self.read_variablenumber()	# 2-
 		else:
 			high = b - 2	# 0-
-			if self.__pair:
+			if self._pair:
 				high -= 1
 			offset = (high << 8) + self.read_byte()
 			length = self.read_variablenumber()	# 2-
 			length += lengthdelta(offset)
-		self.__lastoffset = offset
+		self._lastoffset = offset
 		self.back_copy(offset, length)
-		self.__pair = False
+		self._pair = False
 		return False
 
-	def __shortblock(self):
+	def _shortblock(self):
 		b = self.read_byte()
 		if b <= 1:	# likely 0
 			return True
 		length = 2 + (b & 0x01)	# 2-3
 		offset = b >> 1	# 1-127
 		self.back_copy(offset, length)
-		self.__lastoffset = offset
-		self.__pair = False
+		self._lastoffset = offset
+		self._pair = False
 		return False
 
-	def __singlebyte(self):
+	def _singlebyte(self):
 		offset = self.read_fixednumber(4) # 0-15
 		if offset:
 			self.back_copy(offset)
 		else:
-			self.read_literal('\x00')
-		self.__pair = True
+			self.read_literal(0)
+		self._pair = True
 
 	def do(self):
 		"""returns decompressed buffer and consumed bytes counter"""
 		self.read_literal()
 		while True:
-			if self.__functions[self.read_setbits(3)]():
+			if self._functions[self.read_setbits()]():
 				break
 		return self.out
 
@@ -318,8 +307,11 @@ def getbinlen(value):
 	return result
 
 def lengthdelta(offset):
-	if offset < 0x80 or 0x7D00 <= offset:
-		return 2
-	elif 0x500 <= offset:
-		return 1
-	return 0
+	l = 0
+	if offset >= 32000:
+		l += 1
+	if offset >= 1280:
+		l += 1
+	if offset < 128:
+		l += 2
+	return l

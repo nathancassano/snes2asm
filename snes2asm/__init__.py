@@ -13,6 +13,8 @@ from snes2asm.configurator import Configurator
 from snes2asm.decoder import Headers
 from snes2asm.tile import *
 from snes2asm.bitmap import BitmapIndex
+from snes2asm import compression
+
 
 def main(argv=None):
 	parser = argparse.ArgumentParser( prog="snes2asm", description='Disassembles snes cartridges into practical projects', epilog='')
@@ -70,7 +72,7 @@ def bmp2chr(argv=None):
 	parser.add_argument('-l4', '--linear4', action='store_true', default=True, help="16 colors linear graphic output")
 	parser.add_argument('-l8', '--linear8', action='store_true', default=False, help="256 colors linear graphic output")
 	parser.add_argument('-p', '--palette', action='store_true', default=False, help="Output color *.pal file")
-	parser.add_argument('-s', '--maxsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
+	parser.add_argument('-f', '--fullsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
 	args = parser.parse_args(argv[1:])
 
 	if args.input:
@@ -138,6 +140,64 @@ def bmp2chr(argv=None):
 			if not running:
 				break
 		chr_fp.close()
+	else:
+		parser.print_help()
+	return 0
+
+def get_compression_module_names():
+	from inspect import getmembers, ismodule
+	return [m[0] for m in getmembers(compression, ismodule)]
+
+def packer(argv=None):
+	parser = argparse.ArgumentParser( prog="packer", description='Encode and decode files with compression', epilog='')
+	parser.add_argument('action', metavar='pack|unpack', help="Action type")
+	parser.add_argument('input', metavar='input.bin', help="Input file")
+	parser.add_argument('-o', '--output', required=True, metavar='outfile', default=None, help="File path to output")
+	parser.add_argument('-x', '--encoding', metavar='|'.join(get_compression_module_names()), required=True, type=str, help='Encoding algorithm')
+	parser.add_argument('-f', '--fullsize', action='store_true', default=False, help="Ignore destination file size and write full data")
+
+	args = parser.parse_args(argv[1:])
+
+	if not args.action or args.action not in ['pack', 'unpack']:
+		parser.print_help()
+		return 0
+
+	if args.input:
+		try:
+			in_fp = open(args.input, "rb")
+			data = in_fp.read()
+			in_fp.close()
+		except Exception as e:
+			print("Error: %s" % str(e))
+			return -1
+		
+		try:
+			module = getattr(compression, args.encoding)
+		except AttributeError:
+			print("Unsupported encoding type: %s. Use following types %s." % (args.encoding, ",".join(get_compression_module_names())))
+			return -1
+
+		if args.action == 'pack':
+			output = module.compress(data)
+		else:
+			output = module.decompress(data)
+
+		# If target file already exists then regulate output size
+		if os.path.isfile(args.output):
+			size = os.path.getsize(args.output)
+			if not args.fullsize and size > 0:
+				if size > len(output):
+					output = output + bytes(size - len(output))
+				elif size < len(output):
+					print("Warning: Truncating output of compression for file %s" % args.output)
+					output = output[0:size]
+		try:
+			out_fp = open(args.output, "wb")
+			out_fp.write(output)
+			out_fp.close()
+		except Exception as e:
+			print("Error: %s" % str(e))
+			return -1
 	else:
 		parser.print_help()
 	return 0

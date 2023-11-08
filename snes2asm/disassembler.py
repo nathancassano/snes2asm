@@ -2,7 +2,6 @@
 
 from collections import OrderedDict
 import bisect
-
 from snes2asm.rangetree import RangeTree
 
 InstructionSizes = [
@@ -271,11 +270,24 @@ class Disassembler:
 		self.decoders.add(decoder.start, decoder.end, decoder)
 
 	def run_decoders(self):
-		for dec in self.decoders.items():
-			for pos, instr in dec.decode(self.cart):
-				if instr.has_label():
-					self.data_labels[pos] = instr.preamble[:-1]
-				self.code[pos] = instr
+		for decoder in self.decoders.items():
+			# Process sub decoders
+			for sub in decoder.sub_decoders:
+				self.run_sub_decoder(sub)
+			self.process_decoder(decoder)
+
+	def run_sub_decoder(self, decoder):
+		for sub_dec in decoder.sub_decoders:
+			self.run_sub_decoder(sub_dec)
+		self.process_decoder(decoder)
+
+	def process_decoder(self, decoder):
+		data = self.cart[decoder.start:decoder.end]
+		for pos, instr in decoder.decode(data):
+			pos += decoder.start
+			if instr.has_label():
+				self.data_labels[pos] = instr.preamble[:-1]
+			self.code[pos] = instr
 
 	# Mark header vectors as code labels
 	def mark_vectors(self):

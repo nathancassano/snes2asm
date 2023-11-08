@@ -64,10 +64,10 @@ class Configurator:
 			raise ValueError("Duplicate label %s" % label)
 
 		# Check if decoder transgresses bank boundry
-		bank_size = disasm.cart.bank_size()
 		if 'start' in decode_conf and 'end' in decode_conf:
 			if decode_conf['start'] > decode_conf['end']:
 				raise ValueError("Decoder %s invalid start and end positions" % label)
+			bank_size = disasm.cart.bank_size()
 			if decode_conf['start'] // bank_size != (decode_conf['end']-1) // bank_size:
 				raise ValueError("Decoder %s crosses bank boundry at positions 0x%x to 0x%x" % 
 					(label, decode_conf['start'], decode_conf['end']))
@@ -76,11 +76,12 @@ class Configurator:
 		# {palette: 'sprites1_pal'} => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
 		# {palette: {'param': 'value'} } => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
 		for key, value in decode_conf.items():
+			# If the property of a decoder matches the name of a decoder class
 			if key in self.decoders_enabled.keys():
-				# value is a reference to another decoder by label
+				# Is a label reference to another decoder
 				if type(value) == str and value in self.label_lookup:
 					decode_conf[key] = self.label_lookup[value]
-				# list of references
+				# Is a list of references
 				elif type(value) == list:
 					for i in range(0, len(value)):
 						item = value[i]
@@ -88,7 +89,7 @@ class Configurator:
 							value[i] = self.label_lookup[item]
 						else:
 							raise ValueError("Could not find decoder label reference \"%s\" for decoder \"%s\"" % (item, str(decode_conf)))
-				# nested decoder with parameters
+				# Is a nested decoder with parameters
 				elif type(value) == dict:
 					value['type'] = key
 					value['label'] = "%s_%s" % (label, key)
