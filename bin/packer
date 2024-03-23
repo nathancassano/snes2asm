@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import sys
-from snes2asm import bmp2chr
+from snes2asm import packer
 
 if __name__ == '__main__':
-    sys.exit(bmp2chr(sys.argv))
+    sys.exit(packer(sys.argv))

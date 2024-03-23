@@ -227,6 +227,7 @@ class Disassembler:
 		self.options = options
 		self.pos = 0
 		self.flags = 0
+		self.op_func = [getattr(self, 'op%02X' % op) for op in range(256)]
 		self.valid_code = set()
 		self.code_labels = dict()
 		self.code_label_bank_aliases = dict()
@@ -246,7 +247,7 @@ class Disassembler:
 
 		self.mark_vectors()
 
-		self.mark_labels()
+		self.find_valid_code_paths()
 
 		if self.code_banks:
 			for b in self.code_banks:
@@ -312,29 +313,51 @@ class Disassembler:
 		bank_labels = sorted(bank_labels)
 		return bank_labels
 
-	# Read ahead to find valid opcode index
-	def mark_labels(self):
+	# Read through all the code banks to find valid code labels
+	def find_valid_code_paths(self):
 		flags = self.flags
 		pos = self.pos
 
-		# TODO: Process first bank then banks with most labels
+		# Process banks as blocks
+		if len(self.code_banks) > 0:
 
-		for bank in range(0, self.cart.bank_count()):
-			# Ignore non-code banks
-			if len(self.code_banks) > 0 and bank not in self.code_banks:
-				continue
-			self.pos = bank * self.cart.bank_size()
-			end = self.pos + self.cart.bank_size()
+			for bank in self.code_banks:
+				self.pos = bank * self.cart.bank_size()
+				end = self.pos + self.cart.bank_size()
 
-			for label in self.find_bank_labels(self.pos, end):
-				self.mark_label_section(label)
-				self.pos = label
-			self.mark_label_section(end)
+				for label in self.find_bank_labels(self.pos, end):
+					self.find_valid_code(label)
+					self.pos = label
+				self.find_valid_code(end)
+		# Dynamic code analysis
+		else:
+			# Native vectors
+			nvec_nmi = self.cart.index(self.cart.nvec_nmi)
+			self.find_valid_code_recursive(nvec_nmi)
 
+			nvec_irq = self.cart.index(self.cart.nvec_irq)
+			self.find_valid_code_recursive(nvec_irq)
+
+			# Emulated vectors
+			evec_nmi = self.cart.index(self.cart.evec_nmi)
+			self.find_valid_code_recursive(evec_nmi)
+
+			evec_irq = self.cart.index(self.cart.evec_irq)
+			self.find_valid_code_recursive(evec_irq)
+
+			evec_reset = self.cart.index(self.cart.evec_reset)
+			self.find_valid_code_recursive(evec_reset)
+
+			# Search for remaining code in config provided labels
+			for addr in self.code_labels:
+				if addr not in self.valid_code:
+					self.find_valid_code_recursive(addr)
+
+		# Reset state
 		self.pos = 0
 		self.flags = flags
 
-	def mark_label_section(self, end):
+	def find_valid_code(self, end):
 		while self.pos < end:
 			op = self.cart[self.pos]
 			opSize = self.opSize(op)
@@ -345,7 +368,33 @@ class Disassembler:
 				self.pos = decoder.end
 				continue
 
+			# Mark each opcode's address
 			self.valid_code.add(self.pos)
+
+			# Follow flag changes
+			if op == 0xC2:
+				self.opC2()
+			elif op == 0xE2:
+				self.opE2()
+			self.pos = self.pos + opSize
+
+	def find_valid_code_recursive(self, start):
+		self.pos = start
+		end = self.cart.bank_end(start)
+
+		while self.pos < end:
+			op = self.cart[self.pos]
+			opSize = self.opSize(op)
+
+			# Detect decoders and skip over them
+			decoder = self.decoders.intersects(self.pos, self.pos + opSize)
+			if decoder:
+				self.pos = decoder.end
+				continue
+
+			# Mark each opcode's address
+			self.valid_code.add(self.pos)
+
 			# Follow flag changes
 			if op == 0xC2:
 				self.opC2()
@@ -355,12 +404,29 @@ class Disassembler:
 			elif op == 0x5C or op == 0x22:
 				pipe = self.pipe24()
 				index = self.cart.index(pipe)
-				#TODO
-				#if index != -1:
-					#self.valid_code.add(index)
+				if index not in self.valid_code:
+					pos = self.pos
+					flags = self.flags
+					self.find_valid_code_recursive(index)
+					self.pos = pos
+					self.flags = flags
 			# jmp absolute
 			elif op == 0x4C or op == 0x20:
-				pass
+				pipe = self.pipe16()
+				index = self.cart.index(pipe)
+				if index not in self.valid_code:
+					pos = self.pos
+					flags = self.flags
+					self.find_valid_code_recursive(index)
+					self.pos = pos
+					self.flags = flags
+			# Branch
+			elif self.is_branch(op):
+				pipe = self.pipe8()
+
+			# return
+			elif op == 0x40 or op == 0x6B or op == 0x60:
+				break
 			self.pos = self.pos + opSize
 
 	def decode_bank(self, bank):
@@ -412,14 +478,12 @@ class Disassembler:
 				continue
 
 			# Decode op codes	
-			func = getattr(self, 'op%02X' % op)
-			if not func:
-				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Unhandled opcode: %02X at %06X" % (op, self.pos))
-				self.pos = self.pos + 1
-				continue
+			func = self.op_func[op]
 			ins = func()
 
-			if self.hex_comment:
+			invalid_code = self.pos not in self.valid_code
+
+			if self.hex_comment or invalid_code:
 				if op_size == 1:
 					ins.comment = "%02X" % op
 				elif op_size == 2:
@@ -509,7 +573,9 @@ class Disassembler:
 
 		return index in self.valid_code
 
-
+	def is_branch(self, op):
+		return (op & 0x10) == 0x10 or op == 0x80
+	
 	def acc16(self):
 		return self.flags & 0x20 == 0
 
@@ -1622,6 +1688,11 @@ class Disassembler:
 				return self.ins("%s %s.b" % (ins, self.label_name(address)))
 		else:
 			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (ins, address))
+
+	def pipe8_signed(self):
+		val = self.pipe8()
+		if val > 127:
+			val = val - 256
 
 	def pc_rel_long(self, ins):
 		val = self.pipe16()

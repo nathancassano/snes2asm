@@ -126,6 +126,12 @@ class Cartridge:
 	def size(self):
 		return len(self.data)
 
+	def bank_end(self, index):
+		if self.hirom:
+			return (index & 0xFF0000) + 0x10000
+		else:
+			return (index & 0xFF8000) + 0x8000
+
 	def score_hirom(self):
 		score = 0
 		if (self[self.header + 0xFFDC] + self[self.header + 0xFFDD]*256 + self[self.header + 0xFFDE] + self[self.header + 0xFFDF]*256) == 0xFFFF:

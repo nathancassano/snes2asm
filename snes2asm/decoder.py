@@ -119,18 +119,10 @@ class TextDecoder(Decoder):
 		elif self.index:
 			pos = 0
 			index = 0
-			for index_pos in range(self.index.start, self.index.end, self.index.size):
-				print("start = " + str(self.start) )
-				print("index_pos = " + str(index_pos) )
-				if index_pos == self.index.start:
-					continue
-				offset = self.start + Decoder.val(data, index_pos, self.index.size)
-				if offset >=  self.end:
-					print("TextDecoder: %s skipping out of range index %d" % (self.label, index))
-					continue
+			for offset in self.index.values:
 				yield self.text(pos, data[pos:offset], "%s_%d:" % (self.label, index))
 				pos = offset
-				index = index + 1
+				index += 1
 
 			if pos < self.end:
 				yield self.text(pos, data[pos:self.end], "%s_%d:" % (self.label, index))
@@ -196,12 +188,14 @@ class IndexDecoder(Decoder):
 			raise ValueError("Index: %s start and end do not align with size %i" % (label, size))
 		self.size = size
 		self.parent = None
+		self.values = []
 
 	def decode(self, data):
 		instr = Decoder.data_directive(self.size)
 		index = 0
 		for pos in range(0, len(data), self.size):
 			offset = Decoder.val(data, pos, self.size)
+			self.values.append(offset)
 			if offset + self.parent.start > self.parent.end:
 				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index'))
 			else:
