@@ -95,6 +95,14 @@ decoders:
   bit_depth: 4
   palette: sprites6_pal
   width: 128
+- type: bin
+  label: spc700
+  start: 0x20000
+  end: 0x27F43
+- type: data
+  label: spc700_size
+  start: 0x27F43
+  end: 0x27F45
 - type: gfx
   label: title_top
   start: 0x28000
