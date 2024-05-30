@@ -10,7 +10,7 @@ class Configurator:
 		fp = open(file_path, 'r')
 		self.config = yaml.safe_load(fp)
 		fp.close()
-		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranlationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder}
+		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranslationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder}
 		self._validate()
 		self.label_lookup = {}
 
@@ -65,12 +65,17 @@ class Configurator:
 
 		# Check if decoder transgresses bank boundry
 		if 'start' in decode_conf and 'end' in decode_conf:
-			if decode_conf['start'] > decode_conf['end']:
+			dec_start = decode_conf.get('start')
+			dec_end = decode_conf.get('end')
+			if type(dec_start) != int:
+				raise ValueError("Decoder %s invalid start position %s" % (label, str(dec_start)))
+			if type(dec_end) != int:
+				raise ValueError("Decoder %s invalid end position %s" % (label, str(dec_end)))
+			if dec_start > dec_end:
 				raise ValueError("Decoder %s invalid start and end positions" % label)
 			bank_size = disasm.cart.bank_size()
-			if decode_conf['start'] // bank_size != (decode_conf['end']-1) // bank_size:
-				raise ValueError("Decoder %s crosses bank boundry at positions 0x%x to 0x%x" % 
-					(label, decode_conf['start'], decode_conf['end']))
+			if dec_start // bank_size != (dec_end-1) // bank_size:
+				raise ValueError("Decoder %s crosses bank boundry at positions 0x%x to 0x%x" % (label, dec_start, dec_end))
 
 		# Replace decoder parameter references with actual object instances or sub decoder
 		# {palette: 'sprites1_pal'} => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
