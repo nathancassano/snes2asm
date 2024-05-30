@@ -29,13 +29,17 @@ class Decoder:
 
 	def decode(self, data):
 		show_label = self.label != None
-		for y in range(0, len(data), 16):
-			line = '.db ' + ', '.join(("$%02X" % x) for x in data[y : min(y+16, len(data))])
-			if show_label:
-				yield (y, Instruction(line, preamble=self.label+":"))
-				show_label = False
-			else:
-				yield (y, Instruction(line))
+		size = self.end - self.start
+		if size <= 4:
+			yield (0, Instruction(Decoder.data_directive(size) + ' ' + self.hex_fmt[size-1] % Decoder.val(data, 0, size), preamble=self.label+":"))
+		else:
+			for y in range(0, len(data), 16):
+				line = '.db ' + ', '.join(("$%02X" % x) for x in data[y : min(y+16, len(data))])
+				if show_label:
+					yield (y, Instruction(line, preamble=self.label+":"))
+					show_label = False
+				else:
+					yield (y, Instruction(line))
 
 	def no_data(self):
 		return self.start == self.end
@@ -56,6 +60,8 @@ class Decoder:
 			return data[pos] + (data[pos+1] << 8) + (data[pos+2] << 16) + (data[pos+3] << 24)
 		else:
 			return data[pos]
+
+	hex_fmt = ['$%02X', '$%04X', '$%06X', '$%08X']
 
 	@staticmethod
 	def data_directive(size):
@@ -151,8 +157,6 @@ class TextDecoder(Decoder):
 
 class ArrayDecoder(Decoder):
 
-	hex_fmt = ['$%02X', '$%04X', '$%06X', '$%08X']
-
 	def __init__(self, label, start, end, compress=None, size=1, struct=None):
 		Decoder.__init__(self, label, start, end, compress)
 		self.size = size
@@ -170,7 +174,7 @@ class ArrayDecoder(Decoder):
 			pass
 		else:
 			instr = Decoder.data_directive(self.size) + ' '
-			form = self.hex_fmt[self.size-1]
+			form = Decoder.hex_fmt[self.size-1]
 			show_label = self.label != None
 			for y in range(0, len(data), 16):
 				parts = [form % Decoder.val(data, x, self.size) for x in range(y, min(y+16,len(data)), self.size)]
@@ -279,7 +283,7 @@ class GraphicDecoder(Decoder):
 			step = 1 << (8 - self.bit_depth) 
 			pal = [ ((x + step - 1) << 8 | (x + step - 1) << 16 | (x + step - 1) << 0) for x in range(0, 256, step) ]
 			pal[0] = 0xFF00FF # Transparent
-			pal[1] = 0        # True black
+			pal[1] = 0	# True black
 			return pal
 
 	def filename(self):
