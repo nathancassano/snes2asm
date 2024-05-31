@@ -327,7 +327,7 @@ class GraphicDecoder(Decoder):
 		# Make binary chr file include
 		yield (0, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
 
-class TranlationMap(Decoder):
+class TranslationMap(Decoder):
 	def __init__(self, label, table):
 		Decoder.__init__(self, label)
 		self.table = table
