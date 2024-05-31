@@ -387,6 +387,12 @@ decoders:
   start: 0x162E5
   end: 0x162F1
   size: 2
+#- type: tilemap
+#  label: title_screen
+#  start: 0x????
+#  end: 0x????
+#  gfx: title_top
+#  width: 128
 structs:
   enemy_object:
   - name: x
