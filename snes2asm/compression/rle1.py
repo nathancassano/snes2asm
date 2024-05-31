@@ -2,7 +2,7 @@
 
 from itertools import groupby	
 
-def compress(data):
+def compress(data, terminator=True):
 	compress.out = bytearray()
 	compress.direct = bytearray()
 
@@ -29,7 +29,8 @@ def compress(data):
 	write_direct_data()
 
 	# Write terminator
-	compress.out += bytearray([0xFF, 0xFF])
+	if terminator:
+		compress.out += bytearray([0xFF, 0xFF])
 
 	return compress.out
 
