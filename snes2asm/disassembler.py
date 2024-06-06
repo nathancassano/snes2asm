@@ -283,12 +283,14 @@ class Disassembler:
 		self.process_decoder(decoder)
 
 	def process_decoder(self, decoder):
+		if decoder.processed: return
 		data = self.cart[decoder.start:decoder.end]
 		for pos, instr in decoder.decode(data):
 			pos += decoder.start
 			if instr.has_label():
-				self.data_labels[pos] = instr.preamble[:-1]
+				self.data_labels[self.cart.address(pos)] = instr.preamble[:-1]
 			self.code[pos] = instr
+		decoder.processed = True
 
 	# Mark header vectors as code labels
 	def mark_vectors(self):
@@ -442,10 +444,8 @@ class Disassembler:
 		self.decode(pos, end)
 	
 	def decode(self, start, end):
-
 		self.pos = start
 		while self.pos < end:
-
 			op = self.cart[self.pos]
 			op_size = self.opSize(op)
 
@@ -1614,7 +1614,11 @@ class Disassembler:
 		return " $%06X.l" % self.pipe24()
 	
 	def abs_long_ind_x(self):
-		return " $%06X.l,X" % self.pipe24()
+		address = self.pipe24()
+		if address in self.data_labels:
+			return " %s.l,X" % self.data_labels[address]
+		else:
+			return " $%06X.l,X" % address
 
 	def dir_page(self):
 		address = self.pipe8()
@@ -1731,7 +1735,7 @@ class Instruction:
 		self.post = post
 
 	def has_label(self):
-		return self.preamble != None and self.preamble[:-1] == ':'
+		return self.preamble != None and self.preamble[-1:] == ':'
 
 	def text(self):
 		text = []

@@ -74,7 +74,6 @@ def bmp2chr(argv=None):
 	parser.add_argument('-p', '--palette', action='store_true', default=False, help="Output color *.pal file")
 	parser.add_argument('-f', '--fullsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
 	args = parser.parse_args(argv[1:])
-
 	if args.input:
 		try:
 			b = BitmapIndex.read(args.input)
@@ -88,13 +87,13 @@ def bmp2chr(argv=None):
 		elif args.b8pp:
 			encode = Encode8bppTile
 			depth = 8
-		elif args.l8:
+		elif args.linear8:
 			encode = EncodeLinear8Tile
 			depth = 8
-		elif args.l4:
+		elif args.linear4:
 			encode = EncodeLinear4Tile
 			depth = 4
-		elif args.l2:
+		elif args.linear2:
 			encode = EncodeLinear2Tile
 			depth = 2
 		elif args.b3pp:
@@ -113,7 +112,7 @@ def bmp2chr(argv=None):
 			return -1
 
 		# For odd shaped bitmaps match the number of tiles in the destination chr file by limiting the size
-		if os.path.isfile(args.output) and not args.maxsize:
+		if os.path.isfile(args.output) and not args.fullsize:
 			max_size = os.path.getsize(args.output)
 		else:
 			max_size = b._bcBitCount * b._bcWidth * b._bcHeight
