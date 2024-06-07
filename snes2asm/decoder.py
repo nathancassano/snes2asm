@@ -17,6 +17,7 @@ class Decoder:
 		self.file_ext = None
 		self.compress = compress
 		self.sub_decoders = []
+		self.processed = False
 
 		if type(self.label) != str:
 				raise TypeError("Invalid value for label parameter: %s" % str(self.label))
@@ -137,8 +138,9 @@ class TextDecoder(Decoder):
 			index = 0
 			for offset in self.index.values:
 				yield self.text(pos, data[pos:offset], "%s_%d:" % (self.label, index))
+				if pos != offset:
+					index += 1
 				pos = offset
-				index += 1
 
 			if pos < self.end:
 				yield self.text(pos, data[pos:self.end], "%s_%d:" % (self.label, index))
@@ -146,15 +148,15 @@ class TextDecoder(Decoder):
 		else:
 			yield self.text(0, data, self.label+":")
 
-	def text(self, pos, input, label):
+	def text(self, pos, vals, label):
 		if self.translation:
 			# Break STRINGMAP directives into multiple parts if needed
 			# since there is a bug with large buffers in WLA-DX
 			parts = []
-			for output_start in range(0, len(input), 256):
+			for output_start in range(0, len(vals), 64):
 				out = []
-				output_end = min(output_start+256,len(input))
-				for char in input[output_start:output_end]:
+				output_end = min(output_start+64,len(vals))
+				for char in vals[output_start:output_end]:
 					if char in self.translation.table:
 						out.append(self.translation.table[char])
 					else:
@@ -162,7 +164,7 @@ class TextDecoder(Decoder):
 				parts.append('.STRINGMAP %s "%s"' % (self.translation.label, "".join(out)))
 			return (pos, Instruction("\n".join(parts), preamble=label))
 		else:
-			output = ansi_escape(input)
+			output = ansi_escape(vals)
 			return (pos, Instruction('.db "%s"' % output, preamble=label))
 
 class ArrayDecoder(Decoder):
@@ -183,7 +185,7 @@ class ArrayDecoder(Decoder):
 			# TODO
 			pass
 		else:
-			instr = Decoder.data_directive(self.size) + ' '
+			instr = Decoder.data_directive(self.size)
 			form = Decoder.hex_fmt[self.size-1]
 			show_label = self.label != None
 			for y in range(0, len(data), 16):
