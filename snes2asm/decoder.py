@@ -14,6 +14,7 @@ class Decoder:
 		self.start = start
 		self.end = end
 		self.files = {}
+		self.file_ext = None
 		self.compress = compress
 		self.sub_decoders = []
 
@@ -44,10 +45,19 @@ class Decoder:
 	def no_data(self):
 		return self.start == self.end
 
-	def add_file(self, name, data):
+	def set_output(self, name, ext, data):
+		file_name = "%s.%s" % (name, ext)
+		self.file_ext = ext
+
+		# Decompress and output result
 		if self.compress != None:
-			compfile = "%s.%s" % (name, self.compress)
-			self.files[compfile] = data
+			self.files[file_name] = compression.decompress(self.compress, data)
+			file_name = "%s.%s" % (name, self.compress)
+
+		self.files[file_name] = data
+		return file_name
+
+	def add_extra_file(self, name, data):
 		self.files[name] = data
 
 	@staticmethod
@@ -87,8 +97,8 @@ class BinaryDecoder(Decoder):
 		Decoder.__init__(self, label, start, end, compress)
 
 	def decode(self, data):
-		self.add_file("%s.bin" % self.label, data)
-		yield (0, Instruction(".INCBIN \"%s.bin\"" % self.label, preamble=self.label+":"))
+		file_name = self.set_output(self.label, 'bin', data)
+		yield (0, Instruction(".INCBIN \"%s\"" % file_name, preamble=self.label+":"))
 
 class TextDecoder(Decoder):
 	def __init__(self, label, start, end=0, compress=None, pack=None, index=None, translation=None):
@@ -220,12 +230,9 @@ class PaletteDecoder(Decoder):
 	def colorCount(self):
 		return (self.end - self.start) / 2
 
-	def filename(self):
-		return "%s.pal" % self.label
-
 	def decode(self, data):
 		# Output pal file
-		self.add_file(self.filename(), data)
+		file_name = self.set_output(self.label, 'pal', data)
 
 		lines = []
 		for i in range(0, len(data), 2):
@@ -234,9 +241,9 @@ class PaletteDecoder(Decoder):
 			self.colors.append(rgbcolor)
 			lines.append("#%06X" % rgbcolor)
 
-		self.add_file("%s.rgb" % self.label, "\n".join(lines) )
+		self.add_extra_file("%s.rgb" % self.label, "\n".join(lines) )
 
-		yield (0, Instruction(".INCBIN \"%s\""% self.filename(), preamble=self.label+":"))
+		yield (0, Instruction(".INCBIN \"%s\"" % file_name, preamble=self.label+":"))
 
 class GraphicDecoder(Decoder):
 	def __init__(self, label, start, end, compress=None, bit_depth=4, width=128, palette=None, palette_offset=0, mode7=False):
@@ -286,13 +293,9 @@ class GraphicDecoder(Decoder):
 			pal[1] = 0	# True black
 			return pal
 
-	def filename(self):
-		return "%s_%dbpp.bmp" % (self.label, self.bit_depth)
-
 	def decode(self, data):
 		# Output chr file
-		file_name = "%s_%dbpp.chr" % (self.label, self.bit_depth)
-		self.add_file(file_name, data)
+		file_name = self.set_output("%s_%dbpp" % (self.label, self.bit_depth), 'chr', data)
 
 		# Output bitmap file
 		tile_count = int((self.end - self.start) / self.tile_size)
@@ -322,23 +325,23 @@ class GraphicDecoder(Decoder):
 					bitmap.setPixel(tile_x+x,tile_y+y, pix)
 			tile_index = tile_index + 1
 
-		self.add_file(self.filename(), bitmap.output())
+		self.add_extra_file("%s_%dbpp.bmp" % (self.label, self.bit_depth), bitmap.output())
 
 		# Make binary chr file include
-		yield (0, Instruction(".INCBIN \"%s\""% file_name, preamble=self.label+":"))
+		yield (0, Instruction(".INCBIN \"%s\"" % file_name, preamble=self.label+":"))
 
 class TranslationMap(Decoder):
 	def __init__(self, label, table):
 		Decoder.__init__(self, label)
 		self.table = table
-		# Fill is escape characters
+		# Fill in escape characters
 		for i, k in {0: '\\0', 10: '[n]', 13: '[r]'}.items():
 			if i not in self.table:
 				self.table[i] = k
 
 		self.table = { i: table[i] if i in table else chr(i) for i in range(0,256)}
 		script = "\r\n".join(["%02x=%s" % (hex,text) for hex,text in self.table.items()])
-		self.add_file("%s.tbl" % self.label, script.encode('utf-8'))
+		self.add_extra_file("%s.tbl" % self.label, script.encode('utf-8'))
 
 	def decode(self, data):
 		yield (0, Instruction('.STRINGMAPTABLE %s "%s.tbl"' % (self.label, self.label)))
@@ -367,11 +370,11 @@ class TileMapDecoder(Decoder):
 		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilebin': tilebin, 'gfx': gfx, 'palette': palette}
 		if self.encoding != None:
 			tilemap['encoding'] = self.encoding
-		self.add_file("%s.tilemap" % self.label, yaml.dump(tilemap).encode('utf-8'))
+		self.add_extra_file("%s.tilemap" % self.label, yaml.dump(tilemap).encode('utf-8'))
 
 		# Tile character map file
-		self.add_file(tilebin, data)
-		yield (0, Instruction(".INCBIN \"%s.tilebin\"" % self.label, preamble=self.label+":"))
+		file_name = self.set_output(self.label, "tilebin", data)
+		yield (0, Instruction(".INCBIN \"%s\"" % file_name, preamble=self.label+":"))
 
 _ESCAPE_CHARS = ['\\' + '0', '\\x01', '\\x02', '\\x03', '\\x04', '\\x05', '\\x06', '\\x07', '\\x08', '\\t', '\\n', '\\x0b', '\\x0c', '\\r', '\\x0e', '\\x0f', '\\x10', '\\x11', '\\x12', '\\x13', '\\x14', '\\x15', '\\x16', '\\x17', '\\x18', '\\x19', '\\x1a', '\\x1b', '\\x1c', '\\x1d', '\\x1e', '\\x1f', ' ', '!', '\\"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', '\\', ']', '^', '_', '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', '\x7f', '\\x80', '\\x81', '\\x82', '\\x83', '\\x84', '\\x85', '\\x86', '\\x87', '\\x88', '\\x89', '\\x8a', '\\x8b', '\\x8c', '\\x8d', '\\x8e', '\\x8f', '\\x90', '\\x91', '\\x92', '\\x93', '\\x94', '\\x95', '\\x96', '\\x97', '\\x98', '\\x99', '\\x9a', '\\x9b', '\\x9c', '\\x9d', '\\x9e', '\\x9f', '\\xa0', '\\xa1', '\\xa2', '\\xa3', '\\xa4', '\\xa5', '\\xa6', '\\xa7', '\\xa8', '\\xa9', '\\xaa', '\\xab', '\\xac', '\\xad', '\\xae', '\\xaf', '\\xb0', '\\xb1', '\\xb2', '\\xb3', '\\xb4', '\\xb5', '\\xb6', '\\xb7', '\\xb8', '\\xb9', '\\xba', '\\xbb', '\\xbc', '\\xbd', '\\xbe', '\\xbf', '\\xc0', '\\xc1', '\\xc2', '\\xc3', '\\xc4', '\\xc5', '\\xc6', '\\xc7', '\\xc8', '\\xc9', '\\xca', '\\xcb', '\\xcc', '\\xcd', '\\xce', '\\xcf', '\\xd0', '\\xd1', '\\xd2', '\\xd3', '\\xd4', '\\xd5', '\\xd6', '\\xd7', '\\xd8', '\\xd9', '\\xda', '\\xdb', '\\xdc', '\\xdd', '\\xde', '\\xdf', '\\xe0', '\\xe1', '\\xe2', '\\xe3', '\\xe4', '\\xe5', '\\xe6', '\\xe7', '\\xe8', '\\xe9', '\\xea', '\\xeb', '\\xec', '\\xed', '\\xee', '\\xef', '\\xf0', '\\xf1', '\\xf2', '\\xf3', '\\xf4', '\\xf5', '\\xf6', '\\xf7', '\\xf8', '\\xf9', '\\xfa', '\\xfb', '\\xfc', '\\xfd', '\\xfe', '\\xff']
 

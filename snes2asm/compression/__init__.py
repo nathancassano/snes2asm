@@ -4,3 +4,19 @@ from snes2asm.compression import aplib
 from snes2asm.compression import byte_rle
 from snes2asm.compression import rle1
 from snes2asm.compression import rle2
+
+def get_names():
+	import sys
+	from inspect import getmembers, ismodule
+	return [m[0] for m in getmembers(sys.modules[__name__], ismodule)]
+
+def get_encoding(encoding):
+	import sys
+	return getattr(sys.modules[__name__], encoding)
+
+def compress(encoding, data):
+	return get_encoding(encoding).compress(data)
+
+def decompress(encoding, data):
+	return get_encoding(encoding).decompress(data)
+

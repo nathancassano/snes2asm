@@ -1,14 +1,12 @@
-PREFIX=~/snes-sdk
-
-BINDIR=$(PREFIX)/bin
-AS=$(BINDIR)/wla-65816
-LD=$(BINDIR)/wlalink
-BMP2CHR=~/snes2asm/bin/bmp2chr
+AS=wla-65816
+LD=wlalink
+BMP2CHR=bmp2chr
+PACKER=packer
 ROM=game
 
 COBJ=game.obj
 
-all: graphics $(ROM).smc
+all: graphics encodings $(ROM).smc
 	echo "Done"
 
 .PHONY: graphics
@@ -26,6 +24,10 @@ graphics: *2bpp.chr *3bpp.chr *4bpp.chr *8bpp.chr
 %8bpp.chr: %8bpp.bmp
 	$(BMP2CHR) -b8 -o $@ $<
 
+.PHONY: encodings
+encodings: %encode_files
+
+%endcode_targets
 %.s: *.asm
 	touch $@
 

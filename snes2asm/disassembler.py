@@ -290,6 +290,15 @@ class Disassembler:
 				self.data_labels[pos] = instr.preamble[:-1]
 			self.code[pos] = instr
 
+	def get_compress_targets(self):
+		targets = []
+		for decoder in self.decoders.items():
+			if decoder.compress != None:
+				target_file = "%s.%s" % (decoder.label, decoder.compress)
+				source_file = "%s.%s" % (decoder.label, decoder.file_ext)
+				targets.append((target_file,source_file,decoder.compress))
+		return targets
+
 	# Mark header vectors as code labels
 	def mark_vectors(self):
 		vectors = ["nvec_unused", "nvec_cop", "nvec_brk", "nvec_abort", "nvec_nmi", "nvec_reset", "nvec_irq", "evec_unused", "evec_cop", "evec_unused2", "evec_abort", "evec_nmi", "evec_reset", "evec_irq"]

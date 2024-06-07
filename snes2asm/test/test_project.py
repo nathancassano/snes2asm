@@ -15,7 +15,7 @@ class ProjectTest(unittest.TestCase):
 
 		# ./snes2asm -o project -c classickong.yaml classickong.smc
 		main(['snes2asm', '-o', out, '-c', conf,  path])
-#		shutil.rmtree(out)
+		shutil.rmtree(out)
 
 if __name__ == '__main__':
 	unittest.main()

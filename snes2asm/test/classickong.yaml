@@ -170,26 +170,32 @@ decoders:
   palette: sprites5_pal
 - type: bin
   label: map1
+  compress: byte_rle
   start: 0x137AB
   end: 0x139B7
 - type: bin
   label: map2
+  compress: byte_rle
   start: 0x139B7
   end: 0x13B5D
 - type: bin
   label: map3
+  compress: byte_rle
   start: 0x13B5D
   end: 0x13D56
 - type: bin
   label: map4
+  compress: byte_rle
   start: 0x13D56
   end: 0x13EC3
 - type: bin
   label: mape
+  compress: byte_rle
   start: 0x13EC3
   end: 0x13F7D
 - type: bin
   label: mapi
+  compress: byte_rle
   start: 0x13F7D
   end: 0x13FDD
 - type: data

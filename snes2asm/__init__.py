@@ -144,16 +144,12 @@ def bmp2chr(argv=None):
 		parser.print_help()
 	return 0
 
-def get_compression_module_names():
-	from inspect import getmembers, ismodule
-	return [m[0] for m in getmembers(compression, ismodule)]
-
 def packer(argv=None):
 	parser = argparse.ArgumentParser( prog="packer", description='Encode and decode files with compression', epilog='')
 	parser.add_argument('action', metavar='pack|unpack', help="Action type")
 	parser.add_argument('input', metavar='input.bin', help="Input file")
 	parser.add_argument('-o', '--output', required=True, metavar='outfile', default=None, help="File path to output")
-	parser.add_argument('-x', '--encoding', metavar='|'.join(get_compression_module_names()), required=True, type=str, help='Encoding algorithm')
+	parser.add_argument('-x', '--encoding', metavar='|'.join(compression.get_names()), required=True, type=str, help='Encoding algorithm')
 	parser.add_argument('-f', '--fullsize', action='store_true', default=False, help="Ignore destination file size and write full data")
 
 	args = parser.parse_args(argv[1:])
@@ -165,7 +161,7 @@ def packer(argv=None):
 	if args.input:
 		try:
 			in_fp = open(args.input, "rb")
-			data = in_fp.read()
+			data = bytearray(in_fp.read())
 			in_fp.close()
 		except Exception as e:
 			print("Error: %s" % str(e))
@@ -174,7 +170,7 @@ def packer(argv=None):
 		try:
 			module = getattr(compression, args.encoding)
 		except AttributeError:
-			print("Unsupported encoding type: %s. Use following types %s." % (args.encoding, ",".join(get_compression_module_names())))
+			print("Unsupported encoding type: %s. Use following types %s." % (args.encoding, ",".join(compression.get_names())))
 			return -1
 
 		if args.action == 'pack':

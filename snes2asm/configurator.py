@@ -39,6 +39,9 @@ class Configurator:
 				if decode_conf['type'] not in self.decoders_enabled:
 					print("Unknown decoder type %s. Skipping." % decode_conf['type'])
 					continue
+				if 'compress' in decode_conf and decode_conf['compress'] not in compression.get_names():
+					print("Unknown decoder compression %s. Skipping." % decode_conf['compress'])
+					continue
 				self.apply_decoder(disasm, decode_conf)
 
 		if 'labels' in self.config:

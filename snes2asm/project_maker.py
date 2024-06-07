@@ -18,6 +18,7 @@ class ProjectMaker:
 			os.mkdir(dir)
 
 		self.create_header(dir)
+		self.create_makefile(dir)
 		self.bank_code(dir)
 		self.copy_files(dir)
 
@@ -54,7 +55,7 @@ class ProjectMaker:
 				f.close()
 
 	def copy_files(self, dir):
-		files = ['Makefile','snes.asm', 'linkfile']
+		files = ['snes.asm', 'linkfile']
 		for f in files:
 			shutil.copyfile("%s/%s" % (template_path.__path__[0], f), "%s/%s" % (dir, f) )
 
@@ -69,6 +70,22 @@ class ProjectMaker:
 		f.write(main)
 		f.close()
 
+	def create_makefile(self, dir):
+		f = open("%s/Makefile" % template_path.__path__[0])
+		makefile_temp = f.read()
+		f.close()
+
+		compress_targets = self.disasm.get_compress_targets()
+
+		encode_files = " ".join([t[0] for t in compress_targets])
+		encode_targets = ''
+		for (target_file, source_file, compress_type) in compress_targets:
+			encode_targets += "%s: %s\n\t$(PACKER) pack -x %s -o $@ $<\n\n" % (target_file, source_file, compress_type);
+		temp = PercentTemplate(makefile_temp)
+		makefile = temp.safe_substitute(encode_files=encode_files, endcode_targets=encode_targets)
+		f = open("%s/Makefile" % dir, 'w')
+		f.write(makefile)
+		f.close()
 
 	def create_header(self, dir):
 		f = open("%s/hdr.asm" % template_path.__path__[0])
