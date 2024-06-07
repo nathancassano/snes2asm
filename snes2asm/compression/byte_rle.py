@@ -13,7 +13,7 @@ def compress(data):
 		if c == last and i < len(data) and count < 254:
 			count += 1
 		elif count > 1:
-			out += bytearray([last,tag,count])
+			out += bytearray([last,tag,count-1])
 			count = 1
 		elif last == tag:
 			out += bytearray([last,tag,1])
@@ -38,7 +38,7 @@ def decompress(data):
 			# End of rle found
 			if count == 0:
 				break
-			out += bytearray([last] * (count - 1))
+			out += bytearray([last] * count)
 		else:
 			out.append(c)
 			last = c
