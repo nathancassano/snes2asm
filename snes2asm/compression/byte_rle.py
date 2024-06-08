@@ -1,26 +1,20 @@
 # -*- coding: utf-8 -*-
 
+from itertools import groupby
+
 def compress(data):
 	# Find first unused byte value in data
 	tag = next((d for d in range(0,255) if d not in data))
 	out = bytearray([tag])
-	last = data[0]
-	count = 0
-	i = 0
-	while i <= len(data):
-		if i < len(data):
-			c = data[i]
-		if c == last and i < len(data) and count < 254:
-			count += 1
-		elif count > 1:
-			out += bytearray([last,tag,count-1])
-			count = 1
-		elif last == tag:
-			out += bytearray([last,tag,1])
+
+	# Process grouped data runs
+	for val, item in groupby(data):
+		count = len(list(item))
+		if count > 2:
+			out += bytearray([val,tag,count-1])
 		else:
-			out.append(last)
-		last = c
-		i += 1
+			out += bytearray([val]*count)
+
 	# Mark end of rle
 	out += bytearray([tag,0])
 	return out	

@@ -164,8 +164,8 @@ class TextDecoder(Decoder):
 				parts.append('.STRINGMAP %s "%s"' % (self.translation.label, "".join(out)))
 			return (pos, Instruction("\n".join(parts), preamble=label))
 		else:
-			output = ansi_escape(vals)
-			return (pos, Instruction('.db "%s"' % output, preamble=label))
+			parts = ['.db "%s"' % ansi_escape(vals[i-128:i]) for i in range(128, len(vals) + 128, 128)]
+			return (pos, Instruction("\n".join(parts), preamble=label))
 
 class ArrayDecoder(Decoder):
 
@@ -185,7 +185,7 @@ class ArrayDecoder(Decoder):
 			# TODO
 			pass
 		else:
-			instr = Decoder.data_directive(self.size)
+			instr = Decoder.data_directive(self.size) + ' '
 			form = Decoder.hex_fmt[self.size-1]
 			show_label = self.label != None
 			for y in range(0, len(data), 16):
