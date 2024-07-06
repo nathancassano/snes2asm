@@ -8,17 +8,15 @@ class lz3_Test(unittest.TestCase):
 	
 	def test_compression(self):
 	
-		#singleByte = bytearray([65])
-		#self.assertEqual(singleByte, lz3.decompress(lz3.compress(singleByte)))
+		singleByte = bytearray([65])
+		self.assertEqual(singleByte, lz3.decompress(lz3.compress(singleByte)))
 
-		#repeatByte = bytearray([65]*14)
-		#self.assertEqual(repeatByte, lz3.decompress(lz3.compress(repeatByte)))
+		repeatByte = bytearray([65]*14)
+		self.assertEqual(repeatByte, lz3.decompress(lz3.compress(repeatByte)))
 
 		invertByte = bytearray([10,12,14,16,18,20,245,243,241,239,237,0,0])
 		self.assertEqual(invertByte, lz3.decompress(lz3.compress(invertByte)))
 
-		print(repr(lz3.compress(invertByte)))
-		return
 		stringBytes = bytearray("aaaaaaaaaaccaa".encode('utf-8'))
 		self.assertEqual(stringBytes, lz3.decompress(lz3.compress(stringBytes)))
 
