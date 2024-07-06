@@ -12,6 +12,8 @@ SNES2ASM is more than a disassembler. Generate assembly code with insights! Cont
 * Extract and edit game assets like graphics, palettes and tile-maps.
 * Advanced code path detection and label generation.
 * SNES register symbol detection with code commentary.
+* Support for arrays, indices and encoded text
+* Integrated data decompression and recompression.
 * Custom configuration of game disassembly.
 
 
@@ -91,6 +93,7 @@ List of decoder objects and their parameters.
 |--|--|--|
 | **label:** | gradient1 | Unique name for code label 
 | **type:** | data | Type of decoder being used (data,gfx,palette)
+| **compress:** | rle1 | Compression algorithm (aplib,rle1,lz2)
 | **start:** | 0x2fa90 | Hex address of starting point 
 | **end:** | 0x2faf0 | Hex address of ending point 
 | **(options):** | * | Other specific decoder options
@@ -138,6 +141,13 @@ decoders:
   translation: default
   start: 0x10000
   end: 0x10010
+- type: tilemap
+  label: map1
+  compress: byte_rle
+  tilesize: 8x8
+  width: 32
+  start: 0x137AB
+  end: 0x139B7
 labels:
   read_joy: 0x182EC
   draw_oam: 0x13983
