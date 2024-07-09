@@ -14,6 +14,7 @@ from snes2asm.decoder import Headers
 from snes2asm.tile import *
 from snes2asm.bitmap import BitmapIndex
 from snes2asm import compression
+from snes2asm import brr
 
 
 def main(argv=None):
@@ -196,3 +197,50 @@ def packer(argv=None):
 	else:
 		parser.print_help()
 	return 0
+
+
+def brr_cli(argv=None):
+	parser = argparse.ArgumentParser( prog="brr", description='Encode and decode snes audio samples', epilog='')
+	parser.add_argument('action', metavar='encode|decode', help="Action type")
+	parser.add_argument('input', metavar='inputfile', help="Input file")
+	parser.add_argument('-o', '--output', required=True, metavar='outfile', default=None, help="File path to output")
+
+	args = parser.parse_args(argv[1:])
+
+	if not args.action or args.action not in ['encode', 'decode']:
+		parser.print_help()
+		return 0
+
+	if args.action == "encode" and not args.input.endswith(".wav"):
+		parser.print_help()
+		print("Input file must be a wav")
+		return 0
+
+	if args.action == "decode" and not args.input.endswith(".brr"):
+		parser.print_help()
+		print("Input file must be a brr")
+		return 0
+
+
+	try:
+		in_fp = open(args.input, "rb")
+		data = bytearray(in_fp.read())
+		in_fp.close()
+
+		# Decode
+		if args.action == "decode":
+			output = brr.decode(data)
+
+		# Encode
+		else:
+			output = brr.encode(data)
+
+		# Write output to file
+		out_fp = open(args.input, "wb")
+		out_fp.write(output)
+		out_fp.close()
+
+	except Exception as e:
+		print("Error: %s" % str(e))
+		return -1
+	

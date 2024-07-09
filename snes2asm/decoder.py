@@ -4,6 +4,7 @@ from snes2asm.disassembler import Instruction
 from snes2asm.tile import Decode8bppTile, Decode4bppTile, Decode3bppTile, Decode2bppTile, DecodeMode7Tile
 from snes2asm.bitmap import BitmapIndex
 from snes2asm import compression
+from snes2asm import brr
 
 import struct
 import yaml
@@ -348,8 +349,19 @@ class TranslationMap(Decoder):
 	def decode(self, data):
 		yield (0, Instruction('.STRINGMAPTABLE %s "%s.tbl"' % (self.label, self.label)))
 
+class SoundDecoder(Decoder):
+	def __init__(self, label, start, end, compress=None, rate=32000):
+		Decoder.__init__(self, label, start, end, compress)
+		self.rate = rate
+
+	def decode(self, data):
+		file_name = self.set_output(self.label, 'brr', data)
+		wav_data = brr.decode(data, self.rate)
+		self.add_extra_file("%s.wav" % self.label, wav_data)
+		yield (0, Instruction(".INCBIN \"%s\"" % file_name, preamble=self.label+":"))
+
 class TileMapDecoder(Decoder):
-	def __init__(self, label, start, end, gfx, compress = None, width=128, encoding=None):
+	def __init__(self, label, start, end, gfx, compress=None, width=128, encoding=None):
 		Decoder.__init__(self, label, start, end, compress)
 		self.gfx = gfx
 		self.width = width

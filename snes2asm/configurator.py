@@ -10,7 +10,7 @@ class Configurator:
 		fp = open(file_path, 'r')
 		self.config = yaml.safe_load(fp)
 		fp.close()
-		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranslationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder}
+		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranslationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder, 'sound': SoundDecoder}
 		self._validate()
 		self.label_lookup = {}
 

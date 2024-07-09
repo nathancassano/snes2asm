@@ -95,14 +95,6 @@ decoders:
   bit_depth: 4
   palette: sprites6_pal
   width: 128
-- type: bin
-  label: spc700
-  start: 0x20000
-  end: 0x27F43
-- type: data
-  label: spc700_size
-  start: 0x27F43
-  end: 0x27F45
 - type: gfx
   label: title_top
   start: 0x28000
@@ -393,12 +385,10 @@ decoders:
   start: 0x162E5
   end: 0x162F1
   size: 2
-#- type: tilemap
-#  label: title_screen
-#  start: 0x????
-#  end: 0x????
-#  gfx: title_top
-#  width: 128
+- type: sound
+  label: sample0
+  start: 0x20800
+  end: 0x20B84
 structs:
   enemy_object:
   - name: x
