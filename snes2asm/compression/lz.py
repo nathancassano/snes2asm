@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*- 
 from functools import reduce
 
 class lz_compress:
@@ -46,7 +47,7 @@ class lz_compress:
 		return (self.FILL_INC, index - self._offset, bytearray([self._in[self._offset]]))
 
 	def _zero_fill(self):
-		index = self._offset + 1
+		index = self._offset
 		while index < len(self._in) and self._in[index] == 0:
 			index += 1
 		return (self.FILL_ZERO, index - self._offset, bytearray())
@@ -84,6 +85,24 @@ class lz_compress:
 				max_index = index - length
 
 		return (max_length, max_index)
+
+	def _search_bit_reverse(self):
+		max_length = 0
+		max_index = 0
+
+		for index in range(0, self._offset):
+			offset = self._offset
+			while offset < len(self._in) and self._in[index] == bit_reverse(self._in[offset]):
+				offset += 1
+				index += 1
+			length = offset - self._offset
+
+			if length > max_length:
+				max_length = length
+				max_index = index - length
+
+		return (max_length, max_index)
+
 
 	def _search_reverse(self):
 		max_length = 0
@@ -188,7 +207,19 @@ class lz_decompress:
 		end = start + self._length
 		self._out += self._out[start:end]
 		self._offset += 2
-	
+
+	def _repeat_reverse(self):
+		start = (self._in[self._offset] | (self._in[self._offset+1] << 8)) - 1
+		end = start + self._length
+		self._out += self._out[end:start:-1]
+		self._offset += 2
+
+	def _repeat_bit_reverse(self):
+		start = (self._in[self._offset] | (self._in[self._offset+1] << 8))
+		end = start + self._length
+		self._out += bytearray([bit_reverse(b) for b in self._out[start:end]])
+		self._offset += 2
+
 	def _noop(self):
 		pass
 
@@ -217,3 +248,9 @@ class lz_decompress:
 		while self._offset < len(self._in):
 			self._command()
 		return self._out
+
+def bit_reverse(val):
+	val = (val & 0xF0) >> 4 | (val & 0x0F) << 4
+	val = (val & 0xCC) >> 2 | (val & 0x33) << 2
+	val = (val & 0xAA) >> 1 | (val & 0x55) << 1
+	return val

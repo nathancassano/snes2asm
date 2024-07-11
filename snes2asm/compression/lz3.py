@@ -1,5 +1,6 @@
-from functools import reduce
-from snes2asm.compression.lz import lz_compress, lz_decompress
+# -*- coding: utf-8 -*-
+
+from snes2asm.compression.lz import lz_compress, lz_decompress, bit_reverse
 
 def compress(data):
 	return lz3_compress(data).do()
@@ -9,18 +10,18 @@ def decompress(data):
 
 class lz3_compress(lz_compress):
 
-	REPEAT_INV = 5
+	REPEAT_BITREV = 5
 	REPEAT_REV = 6
 
 	def __init__(self, data):
 		lz_compress.__init__(self, data)
-		self._functions = [self._rle16,self._rle8,self._zero_fill,self._repeat_rel,self._repeat_reverse,self._repeat_inverse]
+		self._functions = [self._rle16,self._rle8,self._zero_fill,self._repeat_rel,self._repeat_reverse,self._repeat_bit_reverse]
 
 	def _repeat_rel(self):
 		return self._repeat_func(self.REPEAT, self._search)
 
-	def _repeat_inverse(self):
-		return self._repeat_func(self.REPEAT_INV, self._search_inverse)
+	def _repeat_bit_reverse(self):
+		return self._repeat_func(self.REPEAT_BITREV, self._search_bit_reverse)
 
 	def _repeat_reverse(self):
 		return self._repeat_func(self.REPEAT_REV, self._search_reverse)
@@ -36,7 +37,7 @@ class lz3_compress(lz_compress):
 class lz3_decompress(lz_decompress):
 	def __init__(self, data):
 		lz_decompress.__init__(self, data)
-		self._functions = [self._direct_copy, self._fill_byte, self._fill_word, self._fill_zero, self._repeat_rel, self._repeat_inverse, self._repeat_reverse, self._long_command]
+		self._functions = [self._direct_copy, self._fill_byte, self._fill_word, self._fill_zero, self._repeat_rel, self._repeat_bit_reverse, self._repeat_reverse, self._long_command]
 
 	def _repeat_data(self):
 		index = self._in[self._offset]
@@ -52,8 +53,8 @@ class lz3_decompress(lz_decompress):
 	def _repeat_rel(self):
 		self._out += self._repeat_data()
 
-	def _repeat_inverse(self):
-		self._out += bytearray([b ^ 0xFF for b in self._repeat_data()])
+	def _repeat_bit_reverse(self):
+		self._out += bytearray([bit_reverse(b) for b in self._repeat_data()])
 
 	def _repeat_reverse(self):
 		self._out += self._repeat_data()[::-1]

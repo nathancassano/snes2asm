@@ -1,4 +1,5 @@
-from functools import reduce
+# -*- coding: utf-8 -*-
+
 from snes2asm.compression.lz import lz_compress, lz_decompress
 
 def compress(data):
