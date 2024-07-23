@@ -105,6 +105,7 @@ class ProjectMaker:
 			rom_speed=rom_speed,
 			rom_map=rom_map,
 			game_code=ansi_escape(self.cart.game_code),
+			empty_fill="%02X" % self.cart.empty_fill,
 			cart_type="%02X" % self.cart.cart_type,
 			rom_size="%02X" % self.cart.rom_size,
 			sram_size="%02X" % self.cart.sram_size,

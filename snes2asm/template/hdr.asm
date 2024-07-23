@@ -6,7 +6,7 @@
 
 .ROMBANKSIZE $%bank_size
 .ROMBANKS %rom_banks
-.EMPTYFILL $FF
+.EMPTYFILL $%empty_fill
 
 .SNESHEADER
   ID "%game_code"				; 1-4 letter string

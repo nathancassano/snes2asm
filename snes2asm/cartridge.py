@@ -10,6 +10,7 @@ class Cartridge:
 		self.hirom = False
 		self.fastrom = False
 		self.header = 0
+		self.empty_fill = self.options.get('empty_fill')
 
 	# Data indexing and slicing
 	def __getitem__(self, i):

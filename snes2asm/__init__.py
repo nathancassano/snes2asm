@@ -21,7 +21,7 @@ def main(argv=None):
 	parser = argparse.ArgumentParser( prog="snes2asm", description='Disassembles snes cartridges into practical projects', epilog='')
 	parser.add_argument('input', metavar='snes.sfc', help="input snes file")
 	parser.add_argument('-v', '--verbose', action='store_true', default=None, help="Verbose output")
-	parser.add_argument('-o', '--output_dir', default='.', help="File path to output project")
+	parser.add_argument('-o', '--output-dir', default='.', help="File path to output project")
 	parser.add_argument('-c', '--config', default=None, help="Path to decoding configuration yaml file")
 	parser.add_argument('-b', '--banks', nargs='+', type=int, help='Code banks to disassemble. Default is auto-detect')
 	parser.add_argument('-hi', '--hirom', action='store_true', default=None, help="Force HiROM")
@@ -29,6 +29,7 @@ def main(argv=None):
 	parser.add_argument('-f', '--fastrom', action='store_true', default=None, help="Force fast ROM addressing")
 	parser.add_argument('-s', '--slowrom', action='store_true', default=None, help="Force slow ROM addressing")
 	parser.add_argument('-nl', '--nolabel', action='store_true', default=None, help="Use addresses instead of labels")
+	parser.add_argument('-e', '--empty-fill', default=255, help="Default byte value for fill empty ROM space")
 	parser.add_argument('-x', '--hex', action='store_true', default=None, help="Comments show instruction hex")
 
 	args = parser.parse_args(argv[1:])
