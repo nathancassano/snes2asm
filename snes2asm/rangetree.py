@@ -1,5 +1,18 @@
 # -*- coding: utf-8 -*-
 
+"""
+RangeTree is a tree structure for accessing data assigned to sequential
+numerical ranges which are in non-overlapping.
+
+tree = RangeTree()
+tree.add(0, 100, "A")
+tree.add(300,310, 42)
+
+tree.find(50)
+tree.intersects(200, 305)
+
+"""
+
 from copy import copy
 
 class RangeTree():
@@ -7,10 +20,13 @@ class RangeTree():
 		self.root = None
 
 	def find(self, index):
+		"""
+		Returns data value which index falls inside range entry
+		"""
 		node = self.root
 
 		while node:
-			if node.val == None:
+			if node.is_parent():
 				if node.left and node.left.contains(index):
 					node = node.left
 				elif node.right and node.right.contains(index):
@@ -23,6 +39,9 @@ class RangeTree():
 				return None
 
 	def items(self):
+		"""
+		Returns list of all data values in sequence
+		"""
 		items = []
 		path = []
 		stack = [self.root]
@@ -31,22 +50,25 @@ class RangeTree():
 			if node not in path:
 				path.append(node)
 
-			if node.val:
-				path.append(node)
-				items.append(node.val)
-			else:
+			if node.is_parent():
 				if node.right:
 					stack.append(node.right)
 				if node.left:
 					stack.append(node.left)
-
+			else:
+				path.append(node)
+				items.append(node.val)
+	
 		return items
 
 	def intersects(self, start, end):
+		"""
+		Returns left most data value that intersects with first range entry
+		"""
 		node = self.root
 
 		while node:
-			if node.val == None:
+			if node.is_parent():
 				if node.left and node.left.intersects(start, end):
 					node = node.left
 				elif node.right and node.right.intersects(start, end):
@@ -58,8 +80,11 @@ class RangeTree():
 			else:
 				return None
 
-	def add(self, start, end, value):	
-		new_node = RangeNode(start, end, value)
+	def add(self, start, end, value):
+		"""
+		Add data entry assigned to numeric range
+		"""
+		new_node = _RangeNode(start, end, value)
 
 		if self.root == None:
 			self.root = new_node
@@ -74,7 +99,9 @@ class RangeTree():
 				self._split_node(self.root, self.root.start, end, new_node, False )
 
 	def _add_inner(self, node, new_node):
-		if node.val:
+		# Find tree node to insert new node into
+
+		if not node.is_parent():
 			raise ValueError("Range conflict")
 			
 		if node.left.intersects(new_node.start, new_node.end):
@@ -89,8 +116,9 @@ class RangeTree():
 				self._split_node(node.right, new_node.start, node.end, new_node, True)
 
 	def _split_node(self, node, range_start, range_end, new_node, left):
+		# Create parent node to contain original node and new node
 		tmp_node = copy(node)
-		node.val = None
+		node.val = None # Mark as parent
 		node.start = range_start
 		node.end = range_end
 		if left:
@@ -103,12 +131,12 @@ class RangeTree():
 	def __str__(self):
 		return str(self.root)
 
-class RangeNode():
-	def __init__(self, start, end, val=None):
+class _RangeNode():
+	def __init__(self, start, end, val):
 		if end < start:
 			raise ValueError("Invalid range %d-%d" % (start, end))
 		self.start = start
-		self.end = end;
+		self.end = end
 		self.left = None
 		self.right = None
 		self.val = val
@@ -130,10 +158,13 @@ class RangeNode():
 			c = c + self.right.size()
 		return c
 
+	def is_parent(self):
+		return self.val == None
+
 	def __str__(self):
-		if self.val:
-			s = "N %x-%x => %s" % (self.start, self.end, str(self.val))
-		else:
+		if self.is_parent():
 			s = "{%x-%x (%x)\n" % (self.start, self.end, self.size())
 			s = s + "[%s]\n[%s] }" % (str(self.left), str(self.right))
+		else:
+			s = "N %x-%x => %s" % (self.start, self.end, str(self.val))
 		return s
