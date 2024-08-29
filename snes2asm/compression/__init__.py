@@ -7,6 +7,7 @@ from snes2asm.compression import rle2
 from snes2asm.compression import lz1
 from snes2asm.compression import lz2
 from snes2asm.compression import lz3
+from snes2asm.compression import lz4
 from snes2asm.compression import lz5
 from snes2asm.compression import lz19
 

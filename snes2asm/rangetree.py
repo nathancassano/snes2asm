@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 
 """
-RangeTree is a tree structure for accessing data assigned to sequential
-numerical ranges which are in non-overlapping.
+RangeTree is a tree data structure for accessing values assigned to
+numerical ranges which are non-overlapping.
 
 tree = RangeTree()
 tree.add(0, 100, "A")
