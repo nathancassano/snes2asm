@@ -62,6 +62,24 @@ def exec_asm(options):
 	project = ProjectMaker(cart, disasm)
 	project.output(options.output_dir)
 
+def main_gui(argv=None):
+	from PyQt5.QtWidgets import QApplication
+	from snes2asm.gui.application import App
+	from snes2asm.gui.widget import Window
+
+	parser = argparse.ArgumentParser( prog="snes2asm_gui", description='Disassembles snes cartridges into practical projects', epilog='')
+
+	args = parser.parse_args(argv[1:])
+
+	if args.input:
+		qapp = QApplication(sys.argv)
+		app = App(options)
+		window = Window(app)
+		window.show()
+		sys.exit(qapp.exec_())
+	else:
+		parser.print_help()
+
 def bmp2chr(argv=None):
 	parser = argparse.ArgumentParser( prog="bmp2chr", description='Convert an indexed bitmap to SNES CHR data', epilog='')
 	parser.add_argument('input', metavar='input.bmp', help="input bitmap file")
