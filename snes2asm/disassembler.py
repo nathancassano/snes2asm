@@ -995,7 +995,7 @@ class Disassembler:
 			if pipe < 0x8000:
 				return self.ins("%s $%04X.w" % (op, pipe))
 			else:
-				address = (self.pos & 0xFF0000) | (pipe - 0x8000)
+				address = (self.pos & 0xFF8000) | (pipe & 0x7FFF)
 		if self.valid_label(address) and not self.no_label:
 			return self.ins("%s %s.w" % (op, self.label_name(address)))
 		else:
