@@ -1721,7 +1721,7 @@ class Disassembler:
 		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
 		if self.valid_label(address):
 			if self.no_label:
-				return self.ins("%s $%04X.w" % (ins, val))
+				return self.ins("%s $%X.w" % (ins, val))
 			else:
 				return self.ins("%s %s.w" % (ins, self.label_name(address)))
 		else:
