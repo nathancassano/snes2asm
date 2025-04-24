@@ -16,6 +16,8 @@ from snes2asm.bitmap import BitmapIndex
 from snes2asm import compression
 from snes2asm import brr
 
+# Depth needed for branch tracing
+sys.setrecursionlimit(3000)
 
 def main(argv=None):
 	parser = argparse.ArgumentParser( prog="snes2asm", description='Disassembles snes cartridges into practical projects', epilog='')

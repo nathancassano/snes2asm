@@ -342,6 +342,16 @@ class Disassembler:
 				self.find_valid_code(end)
 		# Dynamic code analysis
 		else:
+			# Emulated vectors
+			evec_reset = self.cart.index(self.cart.evec_reset)
+			self.find_valid_code_recursive(evec_reset)
+
+			evec_nmi = self.cart.index(self.cart.evec_nmi)
+			self.find_valid_code_recursive(evec_nmi)
+
+			evec_irq = self.cart.index(self.cart.evec_irq)
+			self.find_valid_code_recursive(evec_irq)
+
 			# Native vectors
 			nvec_nmi = self.cart.index(self.cart.nvec_nmi)
 			self.find_valid_code_recursive(nvec_nmi)
@@ -349,18 +359,8 @@ class Disassembler:
 			nvec_irq = self.cart.index(self.cart.nvec_irq)
 			self.find_valid_code_recursive(nvec_irq)
 
-			# Emulated vectors
-			evec_nmi = self.cart.index(self.cart.evec_nmi)
-			self.find_valid_code_recursive(evec_nmi)
-
-			evec_irq = self.cart.index(self.cart.evec_irq)
-			self.find_valid_code_recursive(evec_irq)
-
-			evec_reset = self.cart.index(self.cart.evec_reset)
-			self.find_valid_code_recursive(evec_reset)
-
 			# Search for remaining code in config provided labels
-			for addr in self.code_labels:
+			for addr in self.code_labels.copy():
 				if addr not in self.valid_code:
 					self.find_valid_code_recursive(addr)
 
@@ -390,6 +390,9 @@ class Disassembler:
 			self.pos = self.pos + opSize
 
 	def find_valid_code_recursive(self, start):
+		if start == -1:
+			return
+
 		self.pos = start
 		end = self.cart.bank_end(start)
 
@@ -403,6 +406,9 @@ class Disassembler:
 				self.pos = decoder.end
 				continue
 
+			if self.pos in self.valid_code:
+				break
+
 			# Mark each opcode's address
 			self.valid_code.add(self.pos)
 
@@ -413,32 +419,55 @@ class Disassembler:
 				self.opE2()
 			# jmp absolute long
 			elif op == 0x5C or op == 0x22:
-				pipe = self.pipe24()
-				index = self.cart.index(pipe)
-				if index not in self.valid_code:
-					pos = self.pos
-					flags = self.flags
-					self.find_valid_code_recursive(index)
-					self.pos = pos
-					self.flags = flags
+				address = self.pipe24()
+				index = self.cart.index(address)
+				self.follow_branch(index)
+
 			# jmp absolute
 			elif op == 0x4C or op == 0x20:
 				pipe = self.pipe16()
-				index = self.cart.index(pipe)
-				if index not in self.valid_code:
-					pos = self.pos
-					flags = self.flags
-					self.find_valid_code_recursive(index)
-					self.pos = pos
-					self.flags = flags
+				if self.cart.hirom:
+					index = (self.pos & 0xFF0000) | pipe
+				else:
+					address = (self.pos << 1 & 0xFF0000 ) | pipe
+					index = self.cart.index(address)
+				self.follow_branch(index)
+
+			# PC Rel
+			elif op == 0x62 or op == 0x82:
+				pipe = self.pipe16_signed()
+				if self.cart.hirom:
+					index = (self.pos & 0xFF0000 ) | ((self.pos + pipe + 3) & 0xFFFF)
+				else:
+					address = (self.pos << 1 & 0xFF0000 ) | (0x8000 + (self.pos & 0x7FFF) + pipe + 3)
+					index = self.cart.index(address)
+				self.follow_branch(index)
+
 			# Branch
 			elif self.is_branch(op):
-				pipe = self.pipe8()
+				pipe = self.pipe8_signed()
+				if self.cart.hirom:
+					index = (self.pos & 0xFF0000 ) | ((self.pos + pipe + 2) & 0xFFFF)
+				else:
+					address = (self.pos << 1 & 0xFF0000 ) | (0x8000 + (self.pos & 0x7FFF) + pipe + 2)
+					index = self.cart.index(address)
+	
+				self.follow_branch(index)
 
-			# return
+			# Return and end decode
 			elif op == 0x40 or op == 0x6B or op == 0x60:
+				self.pos = self.pos + opSize
 				break
 			self.pos = self.pos + opSize
+
+	def follow_branch(self, index):
+		if index >= 0 and index not in self.code_labels:
+			self.label_name(index)
+			pos = self.pos
+			flags = self.flags
+			self.find_valid_code_recursive(index)
+			self.pos = pos
+			self.flags = flags
 
 	def decode_bank(self, bank):
 
@@ -583,7 +612,7 @@ class Disassembler:
 		return index in self.valid_code
 
 	def is_branch(self, op):
-		return (op & 0x10) == 0x10 or op == 0x80
+		return ((op & 0xF) == 0 and (op & 0x10) == 0x10) or op == 0x80
 	
 	def acc16(self):
 		return self.flags & 0x20 == 0
@@ -989,15 +1018,13 @@ class Disassembler:
 		pipe = self.pipe16()
 
 		if self.cart.hirom:
-			address = (self.pos & 0xFF0000) | pipe
+			index = (self.pos & 0xFF0000) | pipe
 		else:
-			# If invalid lorom bank
-			if pipe < 0x8000:
-				return self.ins("%s $%04X.w" % (op, pipe))
-			else:
-				address = (self.pos & 0xFF8000) | (pipe & 0x7FFF)
-		if self.valid_label(address) and not self.no_label:
-			return self.ins("%s %s.w" % (op, self.label_name(address)))
+			address = (self.pos << 1 & 0xFF0000 ) | pipe
+			index = self.cart.index(address)
+
+		if self.valid_label(index) and not self.no_label:
+			return self.ins("%s %s.w" % (op, self.label_name(index)))
 		else:
 			return self.ins("%s $%04X.w" % (op, pipe))
 
@@ -1682,50 +1709,39 @@ class Disassembler:
 		return " $%02X,$%02X" % (self.cart[self.pos+2], self.cart[self.pos+1])
 
 	def branch(self, ins):
-		val = self.pipe8()
-		if val > 127:
-			val = val - 256
+		pipe = self.pipe8_signed()
 
-		mask = 0xFFFF if self.cart.hirom else 0x7FFF
-		dest = (self.pos & mask) + val + 2
-
-		# If jump wraps bank
-		if dest < 0 or dest >= mask:
-			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Bank wrapping branch target")
-
-		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 2) & 0xFFFF)
-		if self.valid_label(address):
-			if self.no_label:
-				return self.ins("%s %3d.b" % (ins, val))
-			else:
-				return self.ins("%s %s.b" % (ins, self.label_name(address)))
+		if self.cart.hirom:
+			index = (self.pos & 0xFF0000 ) + ((self.pos + pipe + 2) & 0xFFFF)
 		else:
-			return self.ins(".db $%02X, $%02X" % (self.cart[self.pos], self.pipe8()), comment="Invalid branch target (%s L%06X)" % (ins, address))
+			address = (self.pos << 1 & 0xFF0000 ) | (0x8000 + (self.pos & 0x7FFF) + pipe + 2)
+			index = self.cart.index(address)
 
-	def pipe8_signed(self):
-		val = self.pipe8()
-		if val > 127:
-			val = val - 256
+		if self.valid_label(index):
+			if self.no_label:
+				return self.ins("%s %3d.b" % (ins, pipe))
+			else:
+				return self.ins("%s %s.b" % (ins, self.label_name(index)))
+		else:
+			return self.ins("%s %3d.b" % (ins, pipe), comment="Invalid branch target (%s L%06X)" % (ins, index))
 
 	def pc_rel_long(self, ins):
-		val = self.pipe16()
-		if val > 32767:
-			val = val - 65536
+		pipe = self.pipe16_signed()
 
-		mask = 0xFFFF if self.cart.hirom else 0x7FFF
-		dest = (self.pos & mask) + val + 3
-
-		if dest < 0 or dest >= mask:
-			return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="Bank wrapping branch target")
-
-		address = (self.pos & 0xFF0000 ) + ((self.pos + val + 3) & 0xFFFF)
-		if self.valid_label(address):
-			if self.no_label:
-				return self.ins("%s $%X.w" % (ins, val))
-			else:
-				return self.ins("%s %s.w" % (ins, self.label_name(address)))
+		if self.cart.hirom:
+			index = (self.pos & 0xFF0000 ) + ((self.pos + pipe + 3) & 0xFFFF)
 		else:
-			return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="Invalid branch target (%s L%06X)" % (ins, address))
+			address = (self.pos << 1 & 0xFF0000 ) | (0x8000 + (self.pos & 0x7FFF) + pipe + 3)
+			index = self.cart.index(address)
+
+		# wla-dx won't parse BRL/PER $XXXX liternal addresses. Forced to print as data bytes if no label.
+		if self.valid_label(index):
+			if self.no_label:
+				return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="%s $%X.w" % (ins, pipe & 0xFFFF))
+			else:
+				return self.ins("%s %s.w" % (ins, self.label_name(index)))
+		else:
+			return self.ins(".db $%02X, $%02X, $%02X" % (self.cart[self.pos], self.cart[self.pos+1], self.cart[self.pos+2]), comment="Invalid branch target (%s L%06X)" % (ins, index))
 
 	def pipe8(self):
 		return self.cart[self.pos+1]
@@ -1735,6 +1751,19 @@ class Disassembler:
 
 	def pipe24(self):
 		return self.cart[self.pos+1] | (self.cart[self.pos+2] << 8) | (self.cart[self.pos+3] << 16)
+
+	def pipe8_signed(self):
+		val = self.pipe8()
+		if val > 127:
+			val = val - 256
+		return val
+
+	def pipe16_signed(self):
+		val = self.pipe16()
+		if val > 32767:
+			val = val - 65536
+		return val
+
 
 class Instruction:
 	def __init__(self, code, preamble=None, comment=None, post=None):
