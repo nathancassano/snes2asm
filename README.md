@@ -4,7 +4,7 @@ SNES2ASM
 Overview
 --------
 
-SNES2ASM is more than a disassembler. Generate assembly code with insights! Control the pipelines to assets like graphics, tile-maps, palettes and text. Write your own configuration files describing the layouts of your ROMS. Makes developing your game modifications easy than ever.
+SNES2ASM is more than a disassembler. Generate assembly code with insights! Control the pipelines to assets like graphics, tile-maps, palettes, sound and text. Write your own configuration files describing the layouts of your ROMS. Makes developing your game modifications easy than ever.
 
 ### Features
 * Complete ROM disassembly and reassembly.
@@ -148,6 +148,10 @@ decoders:
   width: 32
   start: 0x137AB
   end: 0x139B7
+- type: sound
+  label: sample_brr
+  start: 0x20800
+  end: 0x20B84
 labels:
   read_joy: 0x182EC
   draw_oam: 0x13983

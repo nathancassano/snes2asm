@@ -257,9 +257,11 @@ def brr_cli(argv=None):
 			output = brr.encode(data)
 
 		# Write output to file
-		out_fp = open(args.input, "wb")
+		out_fp = open(args.output, "wb")
 		out_fp.write(output)
 		out_fp.close()
+
+		print("Successfully %sd to output %s" % (args.action, args.output))
 
 	except Exception as e:
 		print("Error: %s" % str(e))

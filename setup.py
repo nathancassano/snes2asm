@@ -10,7 +10,7 @@ with open(path.join(here, 'README.md')) as f:
 
 setup(
     name='snes2asm',
-    version='0.0.3',
+    version='0.0.4',
     description='Disassembles SNES cartridges into practical projects',
     long_description=long_description,
     author="Nathan Cassano",
@@ -18,7 +18,7 @@ setup(
     packages=find_packages(exclude=['snes2asm/tests']),
     include_package_data=True,
     package_data = {'snes2asm':['template/*'], 'images':['*']},
-    scripts=['bin/snes2asm','bin/bmp2chr'],
+    scripts=['bin/snes2asm','bin/bmp2chr', 'bin/brr'],
     install_requires=['PyYAML', 'PyQt5'],
     classifiers=[
         'Development Status :: 3 - Alpha',
