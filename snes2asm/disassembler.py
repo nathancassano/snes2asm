@@ -222,13 +222,19 @@ StaticAddresses = {
 
 class Disassembler:
 
+	NO_CODE = 0
+	OP_CODE = 1
+	OP_PARAM = 2
+	OP_IND16 = 0x10
+	OP_ACC16 = 0x20
+
 	def __init__(self, cart, options={}):
 		self.cart = cart
 		self.options = options
 		self.pos = 0
 		self.flags = 0
 		self.op_func = [getattr(self, 'op%02X' % op) for op in range(256)]
-		self.valid_code = set()
+		self.code_map = [self.NO_CODE] * self.cart.size()
 		self.code_labels = dict()
 		self.code_label_bank_aliases = dict()
 		self.data_labels = dict()
@@ -361,12 +367,19 @@ class Disassembler:
 
 			# Search for remaining code in config provided labels
 			for addr in self.code_labels.copy():
-				if addr not in self.valid_code:
+				if addr < len(self.code_map) and not self.code_map[addr]:
 					self.find_valid_code_recursive(addr)
 
 		# Reset state
 		self.pos = 0
 		self.flags = flags
+
+	def mark_code(self, pos, size):
+		# Mark as valid code and set include Accumulator with Index status flags
+		self.code_map[pos] = self.OP_CODE | (self.flags & 0x30)
+		# Mark opcode parameters
+		for i in range(pos+1, pos+size):
+			self.code_map[i] = self.OP_PARAM
 
 	def find_valid_code(self, end):
 		while self.pos < end:
@@ -380,7 +393,7 @@ class Disassembler:
 				continue
 
 			# Mark each opcode's address
-			self.valid_code.add(self.pos)
+			self.mark_code(self.pos, opSize)
 
 			# Follow flag changes
 			if op == 0xC2:
@@ -406,23 +419,26 @@ class Disassembler:
 				self.pos = decoder.end
 				continue
 
-			if self.pos in self.valid_code:
+			# Skip code already processed
+			if self.code_map[self.pos]:
 				break
 
 			# Mark each opcode's address
-			self.valid_code.add(self.pos)
+			self.mark_code(self.pos, opSize)
 
 			# Follow flag changes
 			if op == 0xC2:
 				self.opC2()
 			elif op == 0xE2:
 				self.opE2()
-			# jmp absolute long
+			# jmp and jsr absolute long
 			elif op == 0x5C or op == 0x22:
 				address = self.pipe24()
 				index = self.cart.index(address)
 				self.follow_branch(index)
-
+				# jmp does not return
+				if op == 0x5C:
+					break
 			# jmp absolute
 			elif op == 0x4C or op == 0x20:
 				pipe = self.pipe16()
@@ -432,9 +448,11 @@ class Disassembler:
 					address = (self.pos << 1 & 0xFF0000 ) | pipe
 					index = self.cart.index(address)
 				self.follow_branch(index)
+				if op == 0x4C:
+					break
 
-			# PC Rel
-			elif op == 0x62 or op == 0x82:
+			# BRL - Branch Long
+			elif op == 0x82:
 				pipe = self.pipe16_signed()
 				if self.cart.hirom:
 					index = (self.pos & 0xFF0000 ) | ((self.pos + pipe + 3) & 0xFFFF)
@@ -442,6 +460,8 @@ class Disassembler:
 					address = (self.pos << 1 & 0xFF0000 ) | (0x8000 + (self.pos & 0x7FFF) + pipe + 3)
 					index = self.cart.index(address)
 				self.follow_branch(index)
+				if op == 0x82:
+					break
 
 			# Branch
 			elif self.is_branch(op):
@@ -453,7 +473,13 @@ class Disassembler:
 					index = self.cart.index(address)
 	
 				self.follow_branch(index)
-
+				# BRA doesn't return
+				if op == 0x80:
+					break
+			# STP
+			elif op == 0xDB:
+				self.pos = self.pos + opSize
+				break
 			# Return and end decode
 			elif op == 0x40 or op == 0x6B or op == 0x60:
 				self.pos = self.pos + opSize
@@ -500,7 +526,7 @@ class Disassembler:
 					if data_end > end:
 						data_end = end
 					if decoder.end + 1 < data_end:
-						self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[decoder.end + 1: data_end]), comment = 'Opcode overrunning decoder 2')
+						self.code[self.pos] = self.ins('.db ' + ', '.join(("$%02X" % x) for x in self.cart[decoder.end + 1: data_end]), comment = 'Opcode overrunning decoder')
 					self.pos = data_end
 				else:
 					self.pos = decoder.end
@@ -515,13 +541,16 @@ class Disassembler:
 				self.pos = self.pos + 1
 				continue
 
+			code_status = self.code_map[self.pos]
+			self.flags = code_status & 0x30
+
 			# Decode op codes	
 			func = self.op_func[op]
 			ins = func()
 
-			invalid_code = self.pos not in self.valid_code
+			valid_code = bool(code_status & self.OP_CODE)
 
-			if self.hex_comment or invalid_code:
+			if self.hex_comment or not valid_code:
 				if op_size == 1:
 					ins.comment = "%02X" % op
 				elif op_size == 2:
@@ -578,7 +607,6 @@ class Disassembler:
 		return "".join(code)
 
 	def bank_code(self, bank):
-		print("Bank %d" % bank)
 
 		code = []
 		code.append(".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
@@ -609,7 +637,7 @@ class Disassembler:
 		if self.decoders.find(index) != None:
 			return False
 
-		return index in self.valid_code
+		return bool(self.code_map[index] & self.OP_CODE)
 
 	def is_branch(self, op):
 		return ((op & 0xF) == 0 and (op & 0x10) == 0x10) or op == 0x80
