@@ -511,6 +511,12 @@ class Disassembler:
 		self.pos = start
 		while self.pos < end:
 			op = self.cart[self.pos]
+
+			# If code was mapped then pull in status registers
+			code_status = self.code_map[self.pos]
+			if code_status != 0:
+				self.flags = code_status & 0x30
+
 			op_size = self.opSize(op)
 
 			# If intersects decoder
@@ -540,9 +546,6 @@ class Disassembler:
 				self.code[self.pos] = self.ins(".db $%02X" % op, comment = "Opcode overrunning section")
 				self.pos = self.pos + 1
 				continue
-
-			code_status = self.code_map[self.pos]
-			self.flags = code_status & 0x30
 
 			# Decode op codes	
 			func = self.op_func[op]
