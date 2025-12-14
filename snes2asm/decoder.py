@@ -15,6 +15,7 @@ class Decoder:
 		self.start = start
 		self.end = end
 		self.files = {}
+		self.file_name = None
 		self.file_ext = None
 		self.compress = compress
 		self.sub_decoders = []
@@ -48,9 +49,9 @@ class Decoder:
 		return self.start == self.end
 
 	def set_output(self, name, ext, data):
-		file_name = "%s.%s" % (name, ext)
+		self.file_name = "%s.%s" % (name, ext)
 		self.file_ext = ext
-
+		file_name = self.file_name
 		# Decompress and output result
 		if self.compress != None:
 			self.files[file_name] = compression.decompress(self.compress, data)
@@ -375,11 +376,11 @@ class TileMapDecoder(Decoder):
 		# Tilemap file
 		tilebin = "%s.tilebin" % self.label
 		if type(self.gfx) == list:
-			gfx = [ g.filename() for g in self.gfx ]
-			palette = [ g.palette.filename() for g in self.gfx ]
+			gfx = [ g.file_name for g in self.gfx ]
+			palette = [ g.palette.file_name for g in self.gfx ]
 		else:
-			gfx = self.gfx.filename()
-			palette = self.gfx.palette.filename()
+			gfx = self.gfx.file_name
+			palette = self.gfx.palette.file_name
 
 		tilemap = {'name': self.label, 'width': self.width, 'height': self.height, 'tilebin': tilebin, 'gfx': gfx, 'palette': palette}
 		if self.encoding != None:
