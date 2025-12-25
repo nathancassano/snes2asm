@@ -10,6 +10,7 @@ from snes2asm.compression import lz3
 from snes2asm.compression import lz4
 from snes2asm.compression import lz5
 from snes2asm.compression import lz19
+from snes2asm.compression import lz77
 from snes2asm.compression import hal
 
 def get_names():
