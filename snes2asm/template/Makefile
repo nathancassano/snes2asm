@@ -1,4 +1,5 @@
 AS=wla-65816
+AS_SPC700=wla-spc700
 LD=wlalink
 BMP2CHR=bmp2chr
 PACKER=packer
@@ -6,8 +7,9 @@ BRR=brr
 ROM=game
 
 COBJ=game.obj
+SOBJ=spc700.o
 
-all: graphics encodings sound $(ROM).smc
+all: graphics encodings sound spc700 $(ROM).smc
 	echo "Done"
 
 .PHONY: graphics
@@ -31,6 +33,15 @@ sound: *.brr
 %.brr: %.wav
 	$(BRR) encode -o $@ $<
 
+.PHONY: spc700
+spc700: *.bin
+
+${SOBJ}: %.spc
+	$(AS_SPC700) -o $@ $<
+
+%.bin: ${COBJ}
+	$(LD) -b linkfile_spc $@
+
 .PHONY: encodings
 encodings: %encode_files
 
@@ -48,4 +59,4 @@ $(ROM).smc: $(COBJ)
 	@echo -n
 
 clean:
-	rm -f $(ROM).smc $(COBJ) 
+	rm -f $(ROM).smc $(COBJ) *.bin *.obj 
