@@ -52,8 +52,19 @@ class Configurator:
 			for variable, index in self.config['memory'].items():
 				disasm.set_memory(index, variable)
 
-	def apply_decoder(self, disasm, decode_conf):
+	def build_decoder(self, disasm, decode_conf, add_to_disasm=True):
+		"""
+		Build a decoder instance from configuration.
 
+		Args:
+			disasm: The disassembler instance
+			decode_conf: Decoder configuration dict
+			add_to_disasm: If True, add decoder to disassembler (default).
+			               If False, only create the decoder instance.
+
+		Returns:
+			The decoder instance
+		"""
 		decoder_class = self.decoders_enabled[decode_conf['type']]
 		if 'type' not in decode_conf:
 			raise ValueError("Decoder missing type")
@@ -83,6 +94,7 @@ class Configurator:
 		# Replace decoder parameter references with actual object instances or sub decoder
 		# {palette: 'sprites1_pal'} => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
 		# {palette: {'param': 'value'} } => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
+		# {decoders: [{'type': 'sound', ...}, ...]} => {'decoders': [<SoundDecoder instance>, ...]}
 		for key, value in decode_conf.items():
 			# If the property of a decoder matches the name of a decoder class
 			if key in self.decoders_enabled.keys():
@@ -101,9 +113,36 @@ class Configurator:
 				elif type(value) == dict:
 					value['type'] = key
 					value['label'] = "%s_%s" % (label, key)
-					decode_conf[key] = self.apply_decoder(disasm, value)
+					decode_conf[key] = self.build_decoder(disasm, value)
 				else:
 					raise ValueError("Could not find decoder label reference \"%s\" for decoder \"%s\"" % (value, str(decode_conf)))
+
+		# Special handling for 'decoders' key. A list of inline decoder definitions. Yo dog I heard you like decoders inside of your decoders.
+		if 'decoders' in decode_conf:
+			decoders_list = decode_conf['decoders']
+			if type(decoders_list) == list:
+				processed_decoders = []
+				for i, item in enumerate(decoders_list):
+					# Handle inline decoder definition (dict)
+					if type(item) == dict:
+						# Ensure it has a type
+						if 'type' not in item:
+							raise ValueError("Decoder in decoders list for '%s' missing 'type' field" % label)
+						# Generate a label if not provided
+						if 'label' not in item:
+							item['label'] = "%s_decoder_%d" % (label, i)
+						# Build the decoder but DON'T add it to disassembler
+						# (it will be processed by the parent decoder)
+						processed_decoders.append(self.build_decoder(disasm, item, add_to_disasm=False))
+					# Handle string reference to existing decoder
+					elif type(item) == str:
+						if item in self.label_lookup:
+							processed_decoders.append(self.label_lookup[item])
+						else:
+							raise ValueError("Could not find decoder label reference \"%s\" in decoders list for \"%s\"" % (item, label))
+					else:
+						raise ValueError("Invalid item in decoders list for '%s': must be dict or string reference" % label)
+				decode_conf['decoders'] = processed_decoders
 
 		# Add hex_comment flag for SPC700Decoder
 		if decoder_class.__name__ == 'SPC700Decoder':
@@ -116,14 +155,19 @@ class Configurator:
 			print(error)
 			sys.exit()
 
-		try:
-			disasm.add_decoder(decoder_inst)
-			self.label_lookup[label] = decoder_inst
-
-		except ValueError as error:
-			print("Could not add decoder type: %s" % str(error))
+		# Only add to disassembler if requested (nested decoders are not added)
+		if add_to_disasm:
+			try:
+				disasm.add_decoder(decoder_inst)
+				self.label_lookup[label] = decoder_inst
+			except ValueError as error:
+				print("Could not add decoder type: %s" % str(error))
 
 		return decoder_inst
+
+	def apply_decoder(self, disasm, decode_conf):
+		"""Wrapper for build_decoder that always adds to disassembler"""
+		return self.build_decoder(disasm, decode_conf, add_to_disasm=True)
 
 class DataStruct:
 	def __init__(self, name, props):

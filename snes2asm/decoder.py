@@ -396,12 +396,40 @@ class SPC700Decoder(Decoder):
 	"""
 	Decoder for SPC700 audio processor code.
 	Disassembles SPC700 machine code into assembly instructions.
+	Supports nested decoders to extract data embedded within SPC700 code.
 	"""
-	def __init__(self, label, start, end, compress=None, start_addr=0x0000, labels=None, hex_comment=False):
+	# Allowed nested decoder types
+	ALLOWED_NESTED_DECODERS = (Decoder, BinaryDecoder, ArrayDecoder, IndexDecoder, SoundDecoder)
+
+	def __init__(self, label, start, end, compress=None, start_addr=0x0000, labels=None, hex_comment=False, decoders=None):
 		Decoder.__init__(self, label, start, end, compress)
 		self.start_addr = start_addr
 		self.labels = labels if labels else {}
 		self.hex_comment = hex_comment
+
+		# Process nested decoders
+		if decoders is not None:
+			if not isinstance(decoders, list):
+				raise TypeError("SPC700Decoder %s: decoders parameter must be a list" % label)
+
+			for decoder in decoders:
+				# Validate decoder type (check exact class, not subclasses)
+				decoder_type = type(decoder)
+				if decoder_type not in self.ALLOWED_NESTED_DECODERS:
+					raise ValueError(
+						"SPC700Decoder %s: nested decoder '%s' has invalid type '%s'. "
+						"Allowed types: Decoder, BinaryDecoder, ArrayDecoder, IndexDecoder, SoundDecoder"
+						% (label, decoder.label, decoder_type.__name__)
+					)
+
+				# Validate that nested decoder addresses are within SPC700 data range
+				if decoder.start < 0 or decoder.end > (end - start):
+					raise ValueError(
+						"SPC700Decoder %s: nested decoder '%s' range (0x%04X-0x%04X) exceeds SPC700 data size (0x%04X)"
+						% (label, decoder.label, decoder.start, decoder.end, end - start)
+					)
+
+				self.sub_decoders.append(decoder)
 
 	def decode(self, data):
 		# Create disassembler instance with labels
@@ -426,6 +454,21 @@ class SPC700Decoder(Decoder):
 				asm_lines.append("%s:\n" % label_name)
 
 			asm_lines.append("%s\n" % ins.text())
+
+		# Process nested decoders and add their output to the SPC700 assembly file
+		if self.sub_decoders:
+			asm_lines.append("\n; Extracted data from SPC700 code\n")
+			for decoder in self.sub_decoders:
+				# Extract the slice of data for this decoder (addresses are relative to SPC700 data)
+				decoder_data = data[decoder.start:decoder.end]
+
+				# Add a comment showing the offset
+				asm_lines.append("; Offset: $%04X-$%04X\n" % (decoder.start, decoder.end))
+
+				# Process the decoder and add its output to the assembly file
+				for offset, instruction in decoder.decode(decoder_data):
+					asm_lines.append("%s\n" % instruction.text())
+				asm_lines.append("\n")
 
 		# Save the assembly file
 		self.add_extra_file("%s.spc" % self.label, "".join(asm_lines).encode('utf-8'))

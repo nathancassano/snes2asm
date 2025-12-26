@@ -4,22 +4,22 @@ from snes2asm.disassembler import Instruction
 
 # SPC700 instruction sizes (1-3 bytes per instruction)
 SPC700InstructionSizes = [
-	2, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 0x
-	2, 1, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 2, 1, 2, 2, # 1x
-	1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 2x
-	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 3, # 3x
-	1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 4x
-	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, # 5x
-	1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 6x
-	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, # 7x
-	2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3, 2, 2, 1, # 8x
-	2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3, 2, 2, 1, # 9x
-	2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3, 1, 1, 1, # Ax
-	2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3, 1, 1, 1, # Bx
-	2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3, 2, 2, 1, # Cx
-	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 3, 2, 3, 1, 2, 1, # Dx
-	2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 3, 2, 3, 1, 2, 1, # Ex
-	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 3, 2, 3, 1, 2, 1, # Fx
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 1, 3, 1, # 0x
+	2, 1, 2, 3, 2, 3, 3, 2, 3, 1, 2, 2, 1, 1, 3, 3, # 1x
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 1, 3, 2, # 2x
+	2, 1, 2, 3, 2, 3, 3, 2, 3, 1, 2, 2, 1, 1, 2, 3, # 3x
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 1, 3, 2, # 4x
+	2, 1, 2, 3, 2, 3, 3, 2, 3, 1, 2, 2, 1, 1, 3, 3, # 5x
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 1, 3, 1, # 6x
+	2, 1, 2, 3, 2, 3, 3, 2, 3, 1, 2, 2, 1, 1, 2, 1, # 7x
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 2, 1, 3, # 8x
+	2, 1, 2, 3, 2, 3, 3, 2, 3, 1, 2, 2, 1, 1, 1, 1, # 9x
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 2, 1, 1, # Ax
+	2, 1, 2, 3, 2, 3, 3, 2, 3, 1, 2, 2, 1, 1, 1, 1, # Bx
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 2, 1, 1, # Cx
+	2, 1, 2, 3, 2, 3, 3, 2, 2, 2, 2, 2, 1, 1, 3, 1, # Dx
+	1, 1, 2, 3, 2, 3, 1, 2, 2, 3, 3, 2, 3, 1, 1, 1, # Ex
+	2, 1, 2, 3, 2, 3, 3, 2, 2, 2, 3, 2, 1, 1, 2, 1, # Fx
 ]
 
 class SPC700Disassembler:
@@ -352,7 +352,12 @@ class SPC700Disassembler:
 	def op2B(self): return self.ins("rol %s" % self.addr_direct())
 	def op2C(self): return self.ins("rol %s" % self.addr_absolute())
 	def op2D(self): return self.ins("push A")
-	def op2E(self): return self.ins("cbne %s,%s" % (self.addr_direct(), self.addr_relative()))
+	def op2E(self):
+		dp = self.data[self.pos + 1]
+		rel_byte = self.data[self.pos + 2]
+		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
+		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
+		return self.ins("cbne $%02X,$%04X" % (dp, target))
 	def op2F(self): return self.ins("bra %s" % self.addr_relative())
 
 	def op30(self): return self.ins("bmi %s" % self.addr_relative())
@@ -434,7 +439,8 @@ class SPC700Disassembler:
 	def op6D(self): return self.ins("push Y")
 	def op6E(self):
 		dp = self.data[self.pos + 1]
-		rel = self.pipe8_signed()
+		rel_byte = self.data[self.pos + 2]
+		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
 		return self.ins("dbnz $%02X,$%04X" % (dp, target))
 	def op6F(self): return self.ins("ret")
@@ -573,9 +579,10 @@ class SPC700Disassembler:
 	def opDD(self): return self.ins("mov A,Y")
 	def opDE(self):
 		dp = self.data[self.pos + 1]
-		rel = self.pipe8_signed()
+		rel_byte = self.data[self.pos + 2]
+		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("cbne %s,$%04X" % (self.addr_direct_x(), target))
+		return self.ins("cbne $%02X+X,$%04X" % (dp, target))
 	def opDF(self): return self.ins("daa A")
 
 	def opE0(self): return self.ins("clrv")

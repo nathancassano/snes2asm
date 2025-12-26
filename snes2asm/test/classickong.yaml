@@ -391,9 +391,23 @@ decoders:
   end: 0x20533
   start_addr: 0x0000
   labels:
-    0x0000: main
-    0x0014: init
-    0x0016: loop
+    0x0000: start
+    0x0014: setState
+    0x0031: mainLoop
+  decoders:
+    - type: array
+      label: divTable
+      start: 0x390
+      end: 0x410
+      size: 2
+    - type: array
+      label: vibratoTable
+      start: 0x410
+      end: 0x510
+    - type: array
+      label: channelMask
+      start: 0x510
+      end: 0x520
 - type: sound
   label: sample0
   start: 0x20800
