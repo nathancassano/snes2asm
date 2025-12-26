@@ -7,7 +7,7 @@ SPC700InstructionSizes = [
 	2, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 0x
 	2, 1, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 2, 1, 2, 2, # 1x
 	1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 2x
-	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, # 3x
+	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 3, # 3x
 	1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 4x
 	2, 1, 2, 2, 3, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, # 5x
 	1, 1, 2, 2, 2, 2, 2, 2, 2, 3, 3, 2, 3, 1, 3, 3, # 6x
@@ -28,18 +28,21 @@ class SPC700Disassembler:
 	Generates assembly output from SPC700 machine code.
 	"""
 
-	def __init__(self, data, start_addr=0x0000):
+	def __init__(self, data, start_addr=0x0000, labels=None, hex_comment=False):
 		"""
 		Initialize the SPC700 disassembler.
 
 		Args:
 			data: Binary data containing SPC700 machine code
 			start_addr: Starting address for the code (default 0x0000)
+			labels: Dictionary mapping address offsets to label names (optional)
+			hex_comment: Whether to include hex bytes as comments (default False)
 		"""
 		self.data = data
 		self.start_addr = start_addr
 		self.pos = 0
-		self.labels = {}
+		self.labels = labels if labels else {}
+		self.hex_comment = hex_comment
 		self.op_func = [getattr(self, 'op%02X' % op, self.op_unknown) for op in range(256)]
 
 	def disassemble(self):
@@ -69,13 +72,14 @@ class SPC700Disassembler:
 			func = self.op_func[op]
 			ins = func()
 
-			# Add hex comment
-			if op_size == 1:
-				ins.comment = "%02X" % op
-			elif op_size == 2:
-				ins.comment = "%02X %02X" % (op, self.data[self.pos + 1])
-			elif op_size == 3:
-				ins.comment = "%02X %02X %02X" % (op, self.data[self.pos + 1], self.data[self.pos + 2])
+			# Add hex comment if enabled
+			if self.hex_comment:
+				if op_size == 1:
+					ins.comment = "%02X" % op
+				elif op_size == 2:
+					ins.comment = "%02X %02X" % (op, self.data[self.pos + 1])
+				elif op_size == 3:
+					ins.comment = "%02X %02X %02X" % (op, self.data[self.pos + 1], self.data[self.pos + 2])
 
 			yield (offset, ins)
 

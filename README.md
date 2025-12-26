@@ -10,6 +10,7 @@ SNES2ASM is more than a disassembler. Generate assembly code with insights! Cont
 * Complete ROM disassembly and reassembly.
 * LoROM, HiROM with fast and slow ROM detection.
 * Extract and edit game assets like graphics, palettes and tile-maps.
+* SPC700 audio processor disassembly support.
 * Advanced code path detection and label generation.
 * SNES register symbol detection with code commentary.
 * Support for arrays, indices and encoded text
@@ -91,12 +92,36 @@ An array of bank numbers in the rom that hold machine code. Other banks will onl
 List of decoder objects and their parameters.
 | - | Example | Description
 |--|--|--|
-| **label:** | gradient1 | Unique name for code label 
-| **type:** | data | Type of decoder being used (data,gfx,palette)
-| **compress:** | rle1 | Compression algorithm (aplib,rle1,lz2)
-| **start:** | 0x2fa90 | Hex address of starting point 
-| **end:** | 0x2faf0 | Hex address of ending point 
+| **label:** | gradient1 | Unique name for code label
+| **type:** | data | Type of decoder being used (data,gfx,palette,spc700,sound,text,tilemap,array,bin,translation,index)
+| **compress:** | rle1 | Compression algorithm (aplib,rle1,lz2,etc)
+| **start:** | 0x2fa90 | Hex address of starting point
+| **end:** | 0x2faf0 | Hex address of ending point
 | **(options):** | * | Other specific decoder options
+
+#### Decoder Types:
+- **data** - Raw data bytes
+- **gfx** - SNES graphics/tiles (2bpp, 3bpp, 4bpp, 8bpp, Mode7)
+- **palette** - SNES color palettes
+- **spc700** - SPC700 audio processor code (generates .spc assembly file)
+- **sound** - BRR audio samples
+- **text** - Encoded text with translation tables
+- **tilemap** - Tilemap data
+- **array** - Structured data arrays
+- **bin** - Binary data (outputs as .INCBIN)
+- **translation** - Character translation tables
+- **index** - Index/pointer tables
+
+#### SPC700 Decoder Options:
+| Option | Example | Description
+|--|--|--|
+| **type:** | spc700 | Decoder type
+| **label:** | audio_driver | Label for the SPC700 code
+| **start:** | 0x20000 | ROM offset where SPC700 code begins
+| **end:** | 0x20533 | ROM offset where SPC700 code ends
+| **start_addr:** | 0x0200 | SPC700 memory address (optional, default: 0x0000)
+| **labels:** | {0x0000: main} | SPC700-specific labels as address:name pairs (optional)
+| **compress:** | lz2 | Compression algorithm (optional)
 
 ### labels:
 Set of value key pairs which maps a code address to a named label.
@@ -152,6 +177,15 @@ decoders:
   label: sample_brr
   start: 0x20800
   end: 0x20B84
+- type: spc700
+  label: audio_driver
+  start: 0x20000
+  end: 0x20533
+  start_addr: 0x0200
+  labels:
+    0x0000: main
+    0x0040: loop
+    0x0100: handleInput
 labels:
   read_joy: 0x182EC
   draw_oam: 0x13983

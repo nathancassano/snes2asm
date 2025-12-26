@@ -10,7 +10,7 @@ class Configurator:
 		fp = open(file_path, 'r')
 		self.config = yaml.safe_load(fp)
 		fp.close()
-		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranslationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder, 'sound': SoundDecoder}
+		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranslationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder, 'sound': SoundDecoder, 'spc700': SPC700Decoder}
 		self._validate()
 		self.label_lookup = {}
 
@@ -104,6 +104,11 @@ class Configurator:
 					decode_conf[key] = self.apply_decoder(disasm, value)
 				else:
 					raise ValueError("Could not find decoder label reference \"%s\" for decoder \"%s\"" % (value, str(decode_conf)))
+
+		# Add hex_comment flag for SPC700Decoder
+		if decoder_class.__name__ == 'SPC700Decoder':
+			decode_conf['hex_comment'] = disasm.hex_comment
+
 		try:
 			decoder_inst = decoder_class(**decode_conf)
 		except TypeError as error:

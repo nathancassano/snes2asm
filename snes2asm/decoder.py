@@ -397,13 +397,15 @@ class SPC700Decoder(Decoder):
 	Decoder for SPC700 audio processor code.
 	Disassembles SPC700 machine code into assembly instructions.
 	"""
-	def __init__(self, label, start, end, compress=None, start_addr=0x0000):
+	def __init__(self, label, start, end, compress=None, start_addr=0x0000, labels=None, hex_comment=False):
 		Decoder.__init__(self, label, start, end, compress)
 		self.start_addr = start_addr
+		self.labels = labels if labels else {}
+		self.hex_comment = hex_comment
 
 	def decode(self, data):
-		# Create disassembler instance
-		disasm = SPC700Disassembler(data, self.start_addr)
+		# Create disassembler instance with labels
+		disasm = SPC700Disassembler(data, self.start_addr, self.labels, self.hex_comment)
 
 		# Output assembly file
 		file_name = self.set_output(self.label, 'bin', data)
@@ -417,6 +419,12 @@ class SPC700Decoder(Decoder):
 		# Disassemble all instructions
 		for offset, ins in disasm.disassemble():
 			addr = self.start_addr + offset
+
+			# Check if this address has a label
+			if addr in disasm.labels:
+				label_name = disasm.labels[addr]
+				asm_lines.append("%s:\n" % label_name)
+
 			asm_lines.append("%s\n" % ins.text())
 
 		# Save the assembly file

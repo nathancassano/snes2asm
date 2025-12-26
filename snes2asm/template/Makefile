@@ -7,7 +7,6 @@ BRR=brr
 ROM=game
 
 COBJ=game.obj
-SOBJ=spc700.o
 
 all: graphics encodings sound spc700 $(ROM).smc
 	echo "Done"
@@ -34,13 +33,13 @@ sound: *.brr
 	$(BRR) encode -o $@ $<
 
 .PHONY: spc700
-spc700: *.bin
-
-${SOBJ}: %.spc
-	$(AS_SPC700) -o $@ $<
-
-%.bin: ${COBJ}
-	$(LD) -b linkfile_spc $@
+spc700:
+	@if ls *.spc >/dev/null 2>&1; then \
+		for spc in *.spc; do \
+			base=$${spc%.spc}; \
+			echo "Note: SPC700 assembly file $$spc generated (for reference only)"; \
+		done; \
+	fi
 
 .PHONY: encodings
 encodings: %encode_files
@@ -59,4 +58,4 @@ $(ROM).smc: $(COBJ)
 	@echo -n
 
 clean:
-	rm -f $(ROM).smc $(COBJ) *.bin *.obj 
+	rm -f $(ROM).smc $(COBJ) *.obj 

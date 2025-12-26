@@ -385,6 +385,15 @@ decoders:
   start: 0x162E5
   end: 0x162F1
   size: 2
+- type: spc700
+  label: spc_audio_driver
+  start: 0x20000
+  end: 0x20533
+  start_addr: 0x0000
+  labels:
+    0x0000: main
+    0x0014: init
+    0x0016: loop
 - type: sound
   label: sample0
   start: 0x20800
