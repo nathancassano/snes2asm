@@ -83,7 +83,7 @@ class Decoder:
 
 	def decompress(self, data):
 		try:
-			module = getattrib(compression, self.compress)
+			module = getattr(compression, self.compress)
 		except AttributeError:
 			raise ValueError("Decoder %s has an invalid compression type of %s" % (self.label, self.compress))
 		return module.decompress(data) 
@@ -436,7 +436,7 @@ class SPC700Decoder(Decoder):
 		disasm = SPC700Disassembler(data, self.start_addr, self.labels, self.hex_comment)
 
 		# Output assembly file
-		file_name = self.set_output(self.label, 'bin', data)
+		file_name = self.set_output('spc700', 'spc', data)
 
 		# Generate assembly code
 		asm_lines = []
@@ -444,13 +444,31 @@ class SPC700Decoder(Decoder):
 		asm_lines.append("; Start Address: $%04X\n" % self.start_addr)
 		asm_lines.append("\n")
 
-		# Disassemble all instructions
-		for offset, ins in disasm.disassemble():
+		# Add WLA-DX directives for SPC700 assembly
+		asm_lines.append("; WLA-DX SPC700 directives\n")
+		asm_lines.append(".MEMORYMAP\n")
+		asm_lines.append("SLOTSIZE $10000\n")
+		asm_lines.append("DEFAULTSLOT 0\n")
+		asm_lines.append("SLOT 0 $0000\n")
+		asm_lines.append(".ENDME\n")
+		asm_lines.append("\n")
+		asm_lines.append(".ROMBANKMAP\n")
+		asm_lines.append("BANKSTOTAL 1\n")
+		asm_lines.append("BANKSIZE $10000\n")
+		asm_lines.append("BANKS 1\n")
+		asm_lines.append(".ENDRO\n")
+		asm_lines.append("\n")
+
+		# First pass: disassemble all instructions to collect labels
+		instructions = list(disasm.disassemble())
+
+		# Second pass: output instructions with labels
+		for offset, ins in instructions:
 			addr = self.start_addr + offset
 
-			# Check if this address has a label
-			if addr in disasm.labels:
-				label_name = disasm.labels[addr]
+			# Check if this offset has a label
+			if offset in disasm.labels:
+				label_name = disasm.labels[offset]
 				asm_lines.append("%s:\n" % label_name)
 
 			asm_lines.append("%s\n" % ins.text())
@@ -471,7 +489,7 @@ class SPC700Decoder(Decoder):
 				asm_lines.append("\n")
 
 		# Save the assembly file
-		self.add_extra_file("%s.spc" % self.label, "".join(asm_lines).encode('utf-8'))
+		self.add_extra_file("spc700.S", "".join(asm_lines).encode('utf-8'))
 
 		# Output a single reference instruction pointing to the binary
 		yield (0, Instruction(".INCBIN \"%s\"" % file_name, preamble=self.label+":", comment="SPC700 code"))

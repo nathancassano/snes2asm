@@ -393,7 +393,7 @@ decoders:
   labels:
     0x0000: start
     0x0014: setState
-    0x0031: mainLoop
+    0x002E: mainLoop
   decoders:
     - type: array
       label: divTable

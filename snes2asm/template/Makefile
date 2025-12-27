@@ -32,18 +32,15 @@ sound: *.brr
 	$(BRR) encode -o $@ $<
 
 .PHONY: spc700
-spc700: spc700.spc sound
+spc700: $(patsubst %.S,%.spc,$(wildcard *.S))
 
 # Compile SPC700 assembly to object file
-spc700.obj: spc700.asm
+%.obj: %.S
 	$(AS_SPC700) -i -o $@ $<
 
 # Link SPC700 object file to binary
-spc700.spc: spc700.obj
-	@echo "[objects]" > $*.linkfile
-	@echo "$<" >> $*.linkfile
-	$(LD) -i -S $*.linkfile $@
-	@rm -f $*.linkfile
+%.spc: %.obj
+	$(LD) -i -S linkfile_spc $@
 
 .PHONY: encodings
 encodings: %encode_files

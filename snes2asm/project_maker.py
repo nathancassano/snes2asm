@@ -55,7 +55,7 @@ class ProjectMaker:
 				f.close()
 
 	def copy_files(self, dir):
-		files = ['snes.asm', 'linkfile']
+		files = ['snes.asm', 'linkfile', 'linkfile_spc']
 		for f in files:
 			shutil.copyfile("%s/%s" % (template_path.__path__[0], f), "%s/%s" % (dir, f) )
 
