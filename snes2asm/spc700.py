@@ -374,7 +374,7 @@ class SPC700Disassembler:
 	def op1C(self): return self.ins("asl A")
 	def op1D(self): return self.ins("dec X")
 	def op1E(self): return self.ins("cmp X,%s" % self.addr_absolute())
-	def op1F(self): return self.ins("jmp (%s+X)" % self.addr_absolute())
+	def op1F(self): return self.ins("jmp [%s+X]" % self.addr_absolute())
 
 	def op20(self): return self.ins("clrp")
 
