@@ -388,7 +388,7 @@ decoders:
 - type: spc700
   label: spc_audio_driver
   start: 0x20000
-  end: 0x20533
+  end: 0x20800
   start_addr: 0x0000
   labels:
     0x0000: start

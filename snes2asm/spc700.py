@@ -67,6 +67,147 @@ class SPC700Disassembler:
 		self.labels[offset] = label
 		return label
 
+	def get_label_or_addr(self, target_addr):
+		"""
+		Get a label for target if in range, otherwise return absolute address.
+
+		Args:
+			target_addr: Absolute address to get label for
+
+		Returns:
+			Label name if in range, otherwise $XXXX format address
+		"""
+		target_offset = target_addr - self.start_addr
+		if 0 <= target_offset < len(self.data):
+			return self.get_label(target_addr)
+		else:
+			return "$%04X" % target_addr
+
+	def trace_code(self):
+		"""
+		Trace code paths to find all reachable instructions.
+		Returns a set of offsets that contain executable code.
+		"""
+		code_offsets = set()
+		to_process = set()
+
+		# Start with entry points from labels
+		for offset in self.labels.keys():
+			if 0 <= offset < len(self.data):
+				to_process.add(offset)
+
+		# If no labels provided, start from offset 0
+		if not to_process:
+			to_process.add(0)
+
+		while to_process:
+			offset = to_process.pop()
+
+			# Skip if already processed or out of bounds
+			if offset in code_offsets or offset >= len(self.data) or offset < 0:
+				continue
+
+			# Mark this offset as code
+			code_offsets.add(offset)
+
+			# Get opcode and size
+			op = self.data[offset]
+			op_size = SPC700InstructionSizes[op]
+
+			# Check if instruction is complete
+			if offset + op_size > len(self.data):
+				continue
+
+			# Check for control flow instructions and add their targets
+			if op == 0x3F:  # CALL absolute
+				target_addr = self.data[offset + 1] | (self.data[offset + 2] << 8)
+				target_offset = target_addr - self.start_addr
+				if 0 <= target_offset < len(self.data):
+					to_process.add(target_offset)
+					# Register the label for this target
+					self.get_label(target_addr)
+				# CALL continues to next instruction
+				to_process.add(offset + op_size)
+
+			elif op == 0x5F:  # JMP absolute
+				target_addr = self.data[offset + 1] | (self.data[offset + 2] << 8)
+				target_offset = target_addr - self.start_addr
+				if 0 <= target_offset < len(self.data):
+					to_process.add(target_offset)
+					# Register the label for this target
+					self.get_label(target_addr)
+				# JMP doesn't continue to next instruction
+
+			elif op == 0x1F:  # JMP (absolute+X)
+				# Can't determine target statically, but continue to next instruction
+				to_process.add(offset + op_size)
+
+			elif op in [0x2F, 0x10, 0x30, 0x50, 0x70, 0x90, 0xB0, 0xD0, 0xF0]:  # Basic branch instructions
+				# BRA, BPL, BMI, BVC, BVS, BCC, BCS, BNE, BEQ
+				branch_offset = self.data[offset + 1]
+				if branch_offset >= 128:
+					branch_offset -= 256
+				target_offset = offset + 2 + branch_offset
+				if 0 <= target_offset < len(self.data):
+					to_process.add(target_offset)
+					# Register the label for this target
+					target_addr = self.start_addr + target_offset
+					self.get_label(target_addr)
+				# Branch instructions continue to next instruction (except BRA)
+				if op != 0x2F:  # BRA is unconditional
+					to_process.add(offset + op_size)
+				else:
+					# BRA is unconditional, but still process next in case of data
+					to_process.add(offset + op_size)
+
+			elif op in [0x03, 0x13, 0x23, 0x33, 0x43, 0x53, 0x63, 0x73,  # BBCx (bit clear and branch)
+			            0x83, 0x93, 0xA3, 0xB3, 0xC3, 0xD3, 0xE3, 0xF3]:  # BBSx (bit set and branch)
+				# Bit test and branch - 3-byte instruction
+				branch_offset = self.data[offset + 2]
+				if branch_offset >= 128:
+					branch_offset -= 256
+				target_offset = offset + 3 + branch_offset
+				if 0 <= target_offset < len(self.data):
+					to_process.add(target_offset)
+					target_addr = self.start_addr + target_offset
+					self.get_label(target_addr)
+				# Continue to next instruction
+				to_process.add(offset + op_size)
+
+			elif op in [0x2E, 0x6E, 0xDE, 0xFE]:  # CBNE/DBNZ instructions
+				# Compare/Decrement and branch if not equal
+				# 0x2E: CBNE dp,rel (3 bytes)
+				# 0x6E: DBNZ dp,rel (3 bytes)
+				# 0xDE: CBNE dp+X,rel (3 bytes)
+				# 0xFE: DBNZ Y,rel (2 bytes)
+				if op == 0xFE:
+					branch_offset = self.data[offset + 1]
+				else:
+					branch_offset = self.data[offset + 2]
+				if branch_offset >= 128:
+					branch_offset -= 256
+				target_offset = offset + op_size + branch_offset
+				if 0 <= target_offset < len(self.data):
+					to_process.add(target_offset)
+					target_addr = self.start_addr + target_offset
+					self.get_label(target_addr)
+				# Continue to next instruction
+				to_process.add(offset + op_size)
+
+			elif op == 0x6F:  # RET
+				# RET doesn't continue to next instruction
+				pass
+
+			elif op == 0x7F:  # RETI
+				# RETI doesn't continue to next instruction
+				pass
+
+			else:
+				# Normal instruction, continue to next
+				to_process.add(offset + op_size)
+
+		return code_offsets
+
 	def disassemble(self):
 		"""
 		Disassemble the entire data and return assembly instructions.
@@ -74,9 +215,12 @@ class SPC700Disassembler:
 		Yields:
 			Tuple of (offset, Instruction) for each instruction
 		"""
-		self.pos = 0
-		while self.pos < len(self.data):
-			offset = self.pos
+		# Trace code to find all reachable instructions
+		code_offsets = self.trace_code()
+
+		# Disassemble each code offset in order (handles overlapping code)
+		for offset in sorted(code_offsets):
+			self.pos = offset
 			op = self.data[self.pos]
 
 			# Get instruction size and check boundaries
@@ -104,8 +248,6 @@ class SPC700Disassembler:
 					ins.comment = "%02X %02X %02X" % (op, self.data[self.pos + 1], self.data[self.pos + 2])
 
 			yield (offset, ins)
-
-			self.pos += op_size
 
 	def ins(self, code, comment=None):
 		"""Create an instruction object."""
@@ -150,7 +292,7 @@ class SPC700Disassembler:
 	def addr_absolute_label(self):
 		"""Absolute address as label for jumps/calls."""
 		target = self.pipe16()
-		return "!" + self.get_label(target)
+		return self.get_label_or_addr(target)
 
 	def addr_absolute_x(self):
 		"""Absolute indexed by X: !$XXXX+X."""
@@ -184,7 +326,7 @@ class SPC700Disassembler:
 		"""Relative branch offset."""
 		offset = self.pipe8_signed()
 		target = (self.start_addr + self.pos + 2 + offset) & 0xFFFF
-		return self.get_label(target)
+		return self.get_label_or_addr(target)
 
 	# MOV instructions (0x00-0x0F, scattered throughout)
 	def op00(self): return self.ins("nop")
@@ -229,112 +371,112 @@ class SPC700Disassembler:
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.0,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.0,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op23(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.1,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.1,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op43(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.2,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.2,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op63(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.3,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.3,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op83(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.4,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.4,%s" % (dp, self.get_label_or_addr(target)))
 
 	def opA3(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.5,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.5,%s" % (dp, self.get_label_or_addr(target)))
 
 	def opC3(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.6,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.6,%s" % (dp, self.get_label_or_addr(target)))
 
 	def opE3(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.7,%s" % (dp, self.get_label(target)))
+		return self.ins("bbs $%02X.7,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op13(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.0,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.0,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op33(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.1,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.1,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op53(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.2,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.2,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op73(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.3,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.3,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op93(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.4,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.4,%s" % (dp, self.get_label_or_addr(target)))
 
 	def opB3(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.5,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.5,%s" % (dp, self.get_label_or_addr(target)))
 
 	def opD3(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.6,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.6,%s" % (dp, self.get_label_or_addr(target)))
 
 	def opF3(self):
 		dp = self.data[self.pos + 1]
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.7,%s" % (dp, self.get_label(target)))
+		return self.ins("bbc $%02X.7,%s" % (dp, self.get_label_or_addr(target)))
 
 	def op04(self): return self.ins("or a,%s" % self.addr_direct())
 	def op05(self): return self.ins("or a,%s" % self.addr_absolute())
@@ -400,7 +542,7 @@ class SPC700Disassembler:
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("cbne $%02X,%s" % (dp, self.get_label(target)))
+		return self.ins("cbne $%02X,%s" % (dp, self.get_label_or_addr(target)))
 	def op2F(self): return self.ins("bra %s" % self.addr_relative())
 
 	def op30(self): return self.ins("bmi %s" % self.addr_relative())
@@ -485,7 +627,7 @@ class SPC700Disassembler:
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("dbnz $%02X,%s" % (dp, self.get_label(target)))
+		return self.ins("dbnz $%02X,%s" % (dp, self.get_label_or_addr(target)))
 	def op6F(self): return self.ins("ret")
 
 	def op70(self): return self.ins("bvs %s" % self.addr_relative())
@@ -625,7 +767,7 @@ class SPC700Disassembler:
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("cbne [$%02X+X],%s" % (dp, self.get_label(target)))
+		return self.ins("cbne [$%02X+X],%s" % (dp, self.get_label_or_addr(target)))
 	def opDF(self): return self.ins("daa A")
 
 	def opE0(self): return self.ins("clrv")
@@ -665,5 +807,5 @@ class SPC700Disassembler:
 	def opFE(self):
 		rel = self.pipe8_signed()
 		target = (self.start_addr + self.pos + 2 + rel) & 0xFFFF
-		return self.ins("dbnz Y,%s" % self.get_label(target))
+		return self.ins("dbnz Y,%s" % self.get_label_or_addr(target))
 	def opFF(self): return self.ins("stop")
