@@ -340,7 +340,7 @@ class Disassembler:
 
 			for bank in self.code_banks:
 				self.pos = bank * self.cart.bank_size()
-				end = self.pos + self.cart.bank_size()
+				end = self.get_bank_end(bank)
 
 				for label in self.find_bank_labels(self.pos, end):
 					self.find_valid_code(label)
@@ -400,6 +400,10 @@ class Disassembler:
 				self.opC2()
 			elif op == 0xE2:
 				self.opE2()
+			# Return instructions - stop scanning to avoid disassembling padding/data after functions
+			elif op == 0x40 or op == 0x6B or op == 0x60:  # rti, rtl, rts
+				self.pos = self.pos + opSize
+				break
 			self.pos = self.pos + opSize
 
 	def find_valid_code_recursive(self, start):
@@ -495,10 +499,24 @@ class Disassembler:
 			self.pos = pos
 			self.flags = flags
 
+	def get_bank_end(self, bank):
+		"""Get the end address for a bank, excluding the header area if present."""
+		start = self.cart.bank_size() * bank
+		end = start + self.cart.bank_size()
+
+		# Exclude header area for the bank that contains it
+		header_bank = self.cart.header // self.cart.bank_size()
+		if bank == header_bank:
+			# Header starts at offset 0x7FB0 (LoROM) or 0xFFB0 (HiROM) within the header bank
+			header_offset_in_bank = self.cart.header % self.cart.bank_size()
+			end = start + header_offset_in_bank
+
+		return end
+
 	def decode_bank(self, bank):
 
 		start = self.cart.bank_size() * bank
-		end = start + self.cart.bank_size()
+		end = self.get_bank_end(bank)
 
 		# Decode sections in bank
 		pos = start
@@ -516,6 +534,10 @@ class Disassembler:
 			code_status = self.code_map[self.pos]
 			if code_status != 0:
 				self.flags = code_status & 0x30
+			# Skip bytes that weren't marked as code (e.g., padding after functions)
+			elif self.code_banks:  # Only skip when using explicit bank mode
+				self.pos += 1
+				continue
 
 			op_size = self.opSize(op)
 
@@ -571,7 +593,7 @@ class Disassembler:
 			if bank in self.code_banks:
 				continue
 			self.pos = bank * self.cart.bank_size()
-			end = self.pos + self.cart.bank_size()
+			end = self.get_bank_end(bank)
 
 			while self.pos < end:
 				decoder = self.decoders.intersects(self.pos, end)
@@ -615,8 +637,9 @@ class Disassembler:
 		code.append(".BANK %d SLOT 0\n.ORG $0000\n\n.SECTION \"Bank%d\" FORCE\n\n" % (bank, bank))
 
 		addr = bank * self.cart.bank_size()
+		bank_end = self.get_bank_end(bank)
 		# Loop through all the code in the bank range
-		for addr, instr in self.code.item_range(addr, addr+self.cart.bank_size()):
+		for addr, instr in self.code.item_range(addr, bank_end):
 			if not self.no_label and addr in self.code_labels:
 				# Bank aliases
 				if addr in self.code_label_bank_aliases:

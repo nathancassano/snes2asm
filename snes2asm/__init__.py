@@ -91,7 +91,7 @@ def bmp2chr(argv=None):
 	parser.add_argument('-b4', '--b4pp', action='store_true', default=True, help="16 colors planar graphic output")
 	parser.add_argument('-b8', '--b8pp', action='store_true', default=False, help="256 colors planar graphic output")
 	parser.add_argument('-l2', '--linear2', action='store_true', default=False, help="4 colors linear graphic output")
-	parser.add_argument('-l4', '--linear4', action='store_true', default=True, help="16 colors linear graphic output")
+	parser.add_argument('-l4', '--linear4', action='store_true', default=False, help="16 colors linear graphic output")
 	parser.add_argument('-l8', '--linear8', action='store_true', default=False, help="256 colors linear graphic output")
 	parser.add_argument('-p', '--palette', action='store_true', default=False, help="Output color *.pal file")
 	parser.add_argument('-f', '--fullsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
@@ -137,7 +137,11 @@ def bmp2chr(argv=None):
 		if os.path.isfile(args.output) and not args.fullsize:
 			max_size = os.path.getsize(args.output)
 		else:
-			max_size = b._bcBitCount * b._bcWidth * b._bcHeight
+			# Calculate size based on tile count and bytes per tile
+			tiles_wide = b._bcWidth // 8
+			tiles_high = b._bcHeight // 8
+			bytes_per_tile = {2: 16, 3: 24, 4: 32, 8: 64}.get(depth, 32)
+			max_size = tiles_wide * tiles_high * bytes_per_tile
 
 		try:
 			chr_fp = open(args.output, "wb")
@@ -153,7 +157,8 @@ def bmp2chr(argv=None):
 				for y in range(ty, ty+8):
 					for x in range(tx, tx+8):
 						tile.append(b.getPixel(x, y))
-				chr_fp.write(encode(tile))
+				encoded = encode(tile)
+				chr_fp.write(encoded)
 				if chr_fp.tell() >= max_size:
 					running = False
 					break
