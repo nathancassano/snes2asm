@@ -438,23 +438,28 @@ class SPC700Decoder(Decoder):
 		# Output assembly file
 		file_name = self.set_output('spc700', 'spc', data)
 
+		# Calculate actual data size to ensure output matches input
+		data_size = len(data)
+
 		# Generate assembly code
 		asm_lines = []
 		asm_lines.append("; SPC700 Assembly - %s\n" % self.label)
 		asm_lines.append("; Start Address: $%04X\n" % self.start_addr)
+		asm_lines.append("; Data Size: $%04X (%d bytes)\n" % (data_size, data_size))
 		asm_lines.append("\n")
 
 		# Add WLA-DX directives for SPC700 assembly
+		# Use actual data size to ensure assembled output matches original
 		asm_lines.append("; WLA-DX SPC700 directives\n")
 		asm_lines.append(".MEMORYMAP\n")
-		asm_lines.append("SLOTSIZE $10000\n")
+		asm_lines.append("SLOTSIZE $%X\n" % data_size)
 		asm_lines.append("DEFAULTSLOT 0\n")
 		asm_lines.append("SLOT 0 $0000\n")
 		asm_lines.append(".ENDME\n")
 		asm_lines.append("\n")
 		asm_lines.append(".ROMBANKMAP\n")
 		asm_lines.append("BANKSTOTAL 1\n")
-		asm_lines.append("BANKSIZE $10000\n")
+		asm_lines.append("BANKSIZE $%X\n" % data_size)
 		asm_lines.append("BANKS 1\n")
 		asm_lines.append(".ENDRO\n")
 		asm_lines.append("\n")

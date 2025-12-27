@@ -14,6 +14,7 @@ class Document:
 
 		# Format validation and assignment
 		for prop, value in meta_format.items():
+			pass
 
 	def title(self):
 		return ""
