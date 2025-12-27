@@ -5,14 +5,13 @@ BMP2CHR=bmp2chr
 PACKER=packer
 BRR=brr
 ROM=game
+COBJ=game.o
 
-COBJ=game.obj
-
-all: graphics encodings sound spc700 $(ROM).smc
+all: graphics sound spc700 encodings $(ROM).smc
 	echo "Done"
 
 .PHONY: graphics
-graphics: *2bpp.chr *3bpp.chr *4bpp.chr *8bpp.chr
+graphics: $(patsubst %.bmp,%.chr,$(wildcard *2bpp.bmp *3bpp.bmp *4bpp.bmp *8bpp.bmp))
 
 %2bpp.chr: %2bpp.bmp
 	$(BMP2CHR) -b2 -o $@ $<
@@ -33,20 +32,26 @@ sound: *.brr
 	$(BRR) encode -o $@ $<
 
 .PHONY: spc700
-spc700:
-	@if ls *.spc >/dev/null 2>&1; then \
-		for spc in *.spc; do \
-			base=$${spc%.spc}; \
-			echo "Note: SPC700 assembly file $$spc generated (for reference only)"; \
-		done; \
-	fi
+spc700: spc700.spc sound
+
+# Compile SPC700 assembly to object file
+spc700.obj: spc700.asm
+	$(AS_SPC700) -i -o $@ $<
+
+# Link SPC700 object file to binary
+spc700.spc: spc700.obj
+	@echo "[objects]" > $*.linkfile
+	@echo "$<" >> $*.linkfile
+	$(LD) -i -S $*.linkfile $@
+	@rm -f $*.linkfile
 
 .PHONY: encodings
 encodings: %encode_files
 
 %endcode_targets
-%.s: *.asm
-	touch $@
+
+main.s: *.asm
+	touch main.s
 
 $(COBJ): *.s
 	$(AS) -x -v -o $@ $<
@@ -54,8 +59,5 @@ $(COBJ): *.s
 $(ROM).smc: $(COBJ)
 	$(LD) -d -v -S linkfile $(ROM).smc
 
-%::
-	@echo -n
-
 clean:
-	rm -f $(ROM).smc $(COBJ) *.obj 
+	rm -f $(ROM).smc $(COBJ) *.obj *.o *.linkfile
