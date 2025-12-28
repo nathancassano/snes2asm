@@ -637,6 +637,9 @@ class SPC700Decoder(Decoder):
 		asm_lines.append("BANKS 1\n")
 		asm_lines.append(".ENDRO\n")
 		asm_lines.append("\n")
+		asm_lines.append("; Include SPC700 I/O register and DSP definitions\n")
+		asm_lines.append(".include \"spc700.asm\"\n")
+		asm_lines.append("\n")
 
 		# First pass: disassemble all instructions to collect labels
 		instructions = list(disasm.disassemble())

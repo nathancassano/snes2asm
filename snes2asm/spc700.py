@@ -28,6 +28,25 @@ class SPC700Disassembler:
 	Generates assembly output from SPC700 machine code.
 	"""
 
+	# SPC700 I/O Register names and descriptions (mapped to direct page addresses)
+	# Format: address: (register_name, description)
+	IO_REGISTERS = {
+		0xF0: ('TEST', 'Test register'),
+		0xF1: ('CONTROL', 'Control register (timers, ports, IPL ROM)'),
+		0xF2: ('DSPADDR', 'DSP register address select'),
+		0xF3: ('DSPDATA', 'DSP register data port'),
+		0xF4: ('APUIO0', 'APU I/O communication port 0'),
+		0xF5: ('APUIO1', 'APU I/O communication port 1'),
+		0xF6: ('APUIO2', 'APU I/O communication port 2'),
+		0xF7: ('APUIO3', 'APU I/O communication port 3'),
+		0xFA: ('T0DIV', 'Timer 0 divider (8000 Hz / n)'),
+		0xFB: ('T1DIV', 'Timer 1 divider (8000 Hz / n)'),
+		0xFC: ('T2DIV', 'Timer 2 divider (64000 Hz / n)'),
+		0xFD: ('T0OUT', 'Timer 0 counter output (read-only)'),
+		0xFE: ('T1OUT', 'Timer 1 counter output (read-only)'),
+		0xFF: ('T2OUT', 'Timer 2 counter output (read-only)'),
+	}
+
 	def __init__(self, data, start_addr=0x0000, labels=None, hex_comment=False):
 		"""
 		Initialize the SPC700 disassembler.
@@ -273,17 +292,133 @@ class SPC700Disassembler:
 			val = val - 256
 		return val
 
+	def direct_lookup(self, mnemonic, other_operand, direct_first=True):
+		"""
+		Direct page addressing with I/O register lookup.
+		Similar to abs_lookup in main disassembler.
+		Returns instruction with register name and description as comment.
+
+		Args:
+			mnemonic: Instruction mnemonic (e.g., "mov", "cmp")
+			other_operand: The other operand (e.g., "A", "X", "#$00")
+			direct_first: If True, direct address is first operand (e.g., "mov REGISTER,A")
+			              If False, direct address is second operand (e.g., "mov A,REGISTER")
+		"""
+		addr = self.pipe8()
+		if addr in self.IO_REGISTERS:
+			reg_name, reg_desc = self.IO_REGISTERS[addr]
+			if direct_first:
+				return self.ins("%s %s,%s" % (mnemonic, reg_name, other_operand), comment=reg_desc)
+			else:
+				return self.ins("%s %s,%s" % (mnemonic, other_operand, reg_name), comment=reg_desc)
+		else:
+			if direct_first:
+				return self.ins("%s $%02X,%s" % (mnemonic, addr, other_operand))
+			else:
+				return self.ins("%s %s,$%02X" % (mnemonic, other_operand, addr))
+
+	def direct_imm_lookup(self, mnemonic):
+		"""
+		Helper for instructions with direct page and immediate operands (e.g., or dp,#imm).
+		Checks direct page operand for I/O register and adds comment if found.
+		Args:
+			mnemonic: Instruction mnemonic (e.g., "or", "and", "cmp")
+		"""
+		dp = self.data[self.pos + 1]
+		imm = self.data[self.pos + 2]
+
+		# Check if direct page address is an I/O register
+		if dp in self.IO_REGISTERS:
+			reg_name, reg_desc = self.IO_REGISTERS[dp]
+			return self.ins("%s %s,#$%02X" % (mnemonic, reg_name, imm), comment=reg_desc)
+		else:
+			return self.ins("%s $%02X,#$%02X" % (mnemonic, dp, imm))
+
+	def direct_direct_lookup(self, mnemonic):
+		"""
+		Helper for instructions with two direct page operands (e.g., mov dp,dp).
+		Checks both operands for I/O registers and adds comment if found.
+		Args:
+			mnemonic: Instruction mnemonic (e.g., "mov", "cmp", "or")
+		"""
+		dp1 = self.data[self.pos + 1]
+		dp2 = self.data[self.pos + 2]
+
+		# Check if either operand is an I/O register
+		reg1_name = None
+		reg1_desc = None
+		reg2_name = None
+		reg2_desc = None
+
+		if dp1 in self.IO_REGISTERS:
+			reg1_name, reg1_desc = self.IO_REGISTERS[dp1]
+		if dp2 in self.IO_REGISTERS:
+			reg2_name, reg2_desc = self.IO_REGISTERS[dp2]
+
+		# Build operand strings
+		op1 = reg1_name if reg1_name else "$%02X" % dp1
+		op2 = reg2_name if reg2_name else "$%02X" % dp2
+
+		# Build comment (prefer destination register description)
+		comment = None
+		if reg1_desc:
+			comment = reg1_desc
+		elif reg2_desc:
+			comment = reg2_desc
+
+		return self.ins("%s %s,%s" % (mnemonic, op1, op2), comment=comment)
+
+	def bit_op(self, mnemonic, bit):
+		"""
+		Helper for bit manipulation instructions (set1/clr1).
+		Args:
+			mnemonic: "set1" or "clr1"
+			bit: Bit number (0-7)
+		"""
+		return self.ins("%s %s.%d" % (mnemonic, self.addr_direct(), bit))
+
+	def bit_branch(self, mnemonic, bit):
+		"""
+		Helper for bit test and branch instructions (bbs/bbc).
+		Args:
+			mnemonic: "bbs" or "bbc"
+			bit: Bit number (0-7)
+		"""
+		dp = self.data[self.pos + 1]
+		rel_byte = self.data[self.pos + 2]
+		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
+		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
+
+		# Check for I/O register
+		if dp in self.IO_REGISTERS:
+			reg_name, reg_desc = self.IO_REGISTERS[dp]
+			return self.ins("%s %s.%d,%s" % (mnemonic, reg_name, bit, self.get_label_or_addr(target)),
+			               comment=reg_desc)
+		return self.ins("%s $%02X.%d,%s" % (mnemonic, dp, bit, self.get_label_or_addr(target)))
+
 	def addr_direct(self):
-		"""Direct page address: $XX."""
-		return "$%02X" % self.pipe8()
+		"""Direct page address: $XX or register name."""
+		addr = self.pipe8()
+		# Check if this is a known I/O register
+		if addr in self.IO_REGISTERS:
+			return self.IO_REGISTERS[addr][0]  # Return register name from tuple
+		return "$%02X" % addr
 
 	def addr_direct_x(self):
-		"""Direct page indexed by X: $XX+X."""
-		return "$%02X+X" % self.pipe8()
+		"""Direct page indexed by X: $XX+X or register+X."""
+		addr = self.pipe8()
+		# Check if this is a known I/O register
+		if addr in self.IO_REGISTERS:
+			return self.IO_REGISTERS[addr][0] + "+X"  # Return register name from tuple
+		return "$%02X+X" % addr
 
 	def addr_direct_y(self):
-		"""Direct page indexed by Y: $XX+Y."""
-		return "$%02X+Y" % self.pipe8()
+		"""Direct page indexed by Y: $XX+Y or register+Y."""
+		addr = self.pipe8()
+		# Check if this is a known I/O register
+		if addr in self.IO_REGISTERS:
+			return self.IO_REGISTERS[addr][0] + "+Y"  # Return register name from tuple
+		return "$%02X+Y" % addr
 
 	def addr_absolute(self):
 		"""Absolute address: !$XXXX."""
@@ -348,145 +483,48 @@ class SPC700Disassembler:
 	def opE1(self): return self.ins("tcall 14")
 	def opF1(self): return self.ins("tcall 15")
 
-	def op02(self): return self.ins("set1 %s.0" % self.addr_direct())
-	def op22(self): return self.ins("set1 %s.1" % self.addr_direct())
-	def op42(self): return self.ins("set1 %s.2" % self.addr_direct())
-	def op62(self): return self.ins("set1 %s.3" % self.addr_direct())
-	def op82(self): return self.ins("set1 %s.4" % self.addr_direct())
-	def opA2(self): return self.ins("set1 %s.5" % self.addr_direct())
-	def opC2(self): return self.ins("set1 %s.6" % self.addr_direct())
-	def opE2(self): return self.ins("set1 %s.7" % self.addr_direct())
+	def op02(self): return self.bit_op("set1", 0)
+	def op22(self): return self.bit_op("set1", 1)
+	def op42(self): return self.bit_op("set1", 2)
+	def op62(self): return self.bit_op("set1", 3)
+	def op82(self): return self.bit_op("set1", 4)
+	def opA2(self): return self.bit_op("set1", 5)
+	def opC2(self): return self.bit_op("set1", 6)
+	def opE2(self): return self.bit_op("set1", 7)
 
-	def op12(self): return self.ins("clr1 %s.0" % self.addr_direct())
-	def op32(self): return self.ins("clr1 %s.1" % self.addr_direct())
-	def op52(self): return self.ins("clr1 %s.2" % self.addr_direct())
-	def op72(self): return self.ins("clr1 %s.3" % self.addr_direct())
-	def op92(self): return self.ins("clr1 %s.4" % self.addr_direct())
-	def opB2(self): return self.ins("clr1 %s.5" % self.addr_direct())
-	def opD2(self): return self.ins("clr1 %s.6" % self.addr_direct())
-	def opF2(self): return self.ins("clr1 %s.7" % self.addr_direct())
+	def op12(self): return self.bit_op("clr1", 0)
+	def op32(self): return self.bit_op("clr1", 1)
+	def op52(self): return self.bit_op("clr1", 2)
+	def op72(self): return self.bit_op("clr1", 3)
+	def op92(self): return self.bit_op("clr1", 4)
+	def opB2(self): return self.bit_op("clr1", 5)
+	def opD2(self): return self.bit_op("clr1", 6)
+	def opF2(self): return self.bit_op("clr1", 7)
 
-	def op03(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.0,%s" % (dp, self.get_label_or_addr(target)))
+	def op03(self): return self.bit_branch("bbs", 0)
+	def op23(self): return self.bit_branch("bbs", 1)
+	def op43(self): return self.bit_branch("bbs", 2)
+	def op63(self): return self.bit_branch("bbs", 3)
+	def op83(self): return self.bit_branch("bbs", 4)
+	def opA3(self): return self.bit_branch("bbs", 5)
+	def opC3(self): return self.bit_branch("bbs", 6)
+	def opE3(self): return self.bit_branch("bbs", 7)
 
-	def op23(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.1,%s" % (dp, self.get_label_or_addr(target)))
+	def op13(self): return self.bit_branch("bbc", 0)
+	def op33(self): return self.bit_branch("bbc", 1)
+	def op53(self): return self.bit_branch("bbc", 2)
+	def op73(self): return self.bit_branch("bbc", 3)
+	def op93(self): return self.bit_branch("bbc", 4)
+	def opB3(self): return self.bit_branch("bbc", 5)
+	def opD3(self): return self.bit_branch("bbc", 6)
+	def opF3(self): return self.bit_branch("bbc", 7)
 
-	def op43(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.2,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op63(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.3,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op83(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.4,%s" % (dp, self.get_label_or_addr(target)))
-
-	def opA3(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.5,%s" % (dp, self.get_label_or_addr(target)))
-
-	def opC3(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.6,%s" % (dp, self.get_label_or_addr(target)))
-
-	def opE3(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbs $%02X.7,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op13(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.0,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op33(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.1,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op53(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.2,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op73(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.3,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op93(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.4,%s" % (dp, self.get_label_or_addr(target)))
-
-	def opB3(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.5,%s" % (dp, self.get_label_or_addr(target)))
-
-	def opD3(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.6,%s" % (dp, self.get_label_or_addr(target)))
-
-	def opF3(self):
-		dp = self.data[self.pos + 1]
-		rel_byte = self.data[self.pos + 2]
-		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
-		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
-		return self.ins("bbc $%02X.7,%s" % (dp, self.get_label_or_addr(target)))
-
-	def op04(self): return self.ins("or a,%s" % self.addr_direct())
-	def op05(self): return self.ins("or a,%s" % self.addr_absolute())
-	def op06(self): return self.ins("or a,(X)")
-	def op07(self): return self.ins("or a,%s" % self.addr_indirect_x())
-	def op08(self): return self.ins("or a,%s" % self.addr_imm8())
-	def op09(self):
-		dp1 = self.data[self.pos + 1]
-		dp2 = self.data[self.pos + 2]
-		return self.ins("or $%02X,$%02X" % (dp1, dp2))
+	def op04(self): return self.ins("or A,%s" % self.addr_direct())
+	def op05(self): return self.ins("or A,%s" % self.addr_absolute())
+	def op06(self): return self.ins("or A,(X)")
+	def op07(self): return self.ins("or A,%s" % self.addr_indirect_x())
+	def op08(self): return self.ins("or A,%s" % self.addr_imm8())
+	def op09(self): return self.direct_direct_lookup("or")
 
 	def op0A(self):
 		addr = self.pipe16()
@@ -502,14 +540,11 @@ class SPC700Disassembler:
 
 	def op10(self): return self.ins("bpl %s" % self.addr_relative())
 
-	def op14(self): return self.ins("or a,%s" % self.addr_direct_x())
-	def op15(self): return self.ins("or a,%s" % self.addr_absolute_x())
-	def op16(self): return self.ins("or a,%s" % self.addr_absolute_y())
-	def op17(self): return self.ins("or a,%s" % self.addr_indirect_y())
-	def op18(self):
-		dp = self.data[self.pos + 1]
-		imm = self.data[self.pos + 2]
-		return self.ins("or $%02X,#$%02X" % (dp, imm))
+	def op14(self): return self.ins("or A,%s" % self.addr_direct_x())
+	def op15(self): return self.ins("or A,%s" % self.addr_absolute_x())
+	def op16(self): return self.ins("or A,%s" % self.addr_absolute_y())
+	def op17(self): return self.ins("or A,%s" % self.addr_indirect_y())
+	def op18(self): return self.direct_imm_lookup("or")
 	def op19(self): return self.ins("or (X),(Y)")
 	def op1A(self): return self.ins("decw %s" % self.addr_direct())
 	def op1B(self): return self.ins("asl %s" % self.addr_direct_x())
@@ -520,15 +555,12 @@ class SPC700Disassembler:
 
 	def op20(self): return self.ins("clrp")
 
-	def op24(self): return self.ins("and a,%s" % self.addr_direct())
-	def op25(self): return self.ins("and a,%s" % self.addr_absolute())
-	def op26(self): return self.ins("and a,(X)")
-	def op27(self): return self.ins("and a,%s" % self.addr_indirect_x())
-	def op28(self): return self.ins("and a,%s" % self.addr_imm8())
-	def op29(self):
-		dp1 = self.data[self.pos + 1]
-		dp2 = self.data[self.pos + 2]
-		return self.ins("and $%02X,$%02X" % (dp1, dp2))
+	def op24(self): return self.ins("and A,%s" % self.addr_direct())
+	def op25(self): return self.ins("and A,%s" % self.addr_absolute())
+	def op26(self): return self.ins("and A,(X)")
+	def op27(self): return self.ins("and A,%s" % self.addr_indirect_x())
+	def op28(self): return self.ins("and A,%s" % self.addr_imm8())
+	def op29(self): return self.direct_direct_lookup("and")
 	def op2A(self):
 		addr = self.pipe16()
 		bit = (addr >> 13) & 0x7
@@ -542,38 +574,37 @@ class SPC700Disassembler:
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
+
+		# Check for I/O register
+		if dp in self.IO_REGISTERS:
+			reg_name, reg_desc = self.IO_REGISTERS[dp]
+			return self.ins("cbne %s,%s" % (reg_name, self.get_label_or_addr(target)), comment=reg_desc)
 		return self.ins("cbne $%02X,%s" % (dp, self.get_label_or_addr(target)))
 	def op2F(self): return self.ins("bra %s" % self.addr_relative())
 
 	def op30(self): return self.ins("bmi %s" % self.addr_relative())
 
-	def op34(self): return self.ins("and a,%s" % self.addr_direct_x())
-	def op35(self): return self.ins("and a,%s" % self.addr_absolute_x())
-	def op36(self): return self.ins("and a,%s" % self.addr_absolute_y())
-	def op37(self): return self.ins("and a,%s" % self.addr_indirect_y())
-	def op38(self):
-		dp = self.data[self.pos + 1]
-		imm = self.data[self.pos + 2]
-		return self.ins("and $%02X,#$%02X" % (dp, imm))
+	def op34(self): return self.ins("and A,%s" % self.addr_direct_x())
+	def op35(self): return self.ins("and A,%s" % self.addr_absolute_x())
+	def op36(self): return self.ins("and A,%s" % self.addr_absolute_y())
+	def op37(self): return self.ins("and A,%s" % self.addr_indirect_y())
+	def op38(self): return self.direct_imm_lookup("and")
 	def op39(self): return self.ins("and (X),(Y)")
 	def op3A(self): return self.ins("incw %s" % self.addr_direct())
 	def op3B(self): return self.ins("rol %s" % self.addr_direct_x())
 	def op3C(self): return self.ins("rol A")
 	def op3D(self): return self.ins("inc X")
 	def op3E(self): return self.ins("cmp X,%s" % self.addr_direct())
-	def op3F(self): return self.ins("CALL !%s" % self.addr_absolute_label())
+	def op3F(self): return self.ins("call !%s" % self.addr_absolute_label())
 
 	def op40(self): return self.ins("setp")
 
-	def op44(self): return self.ins("eor a,%s" % self.addr_direct())
-	def op45(self): return self.ins("eor a,%s" % self.addr_absolute())
-	def op46(self): return self.ins("eor a,(X)")
-	def op47(self): return self.ins("eor a,%s" % self.addr_indirect_x())
-	def op48(self): return self.ins("eor a,%s" % self.addr_imm8())
-	def op49(self):
-		dp1 = self.data[self.pos + 1]
-		dp2 = self.data[self.pos + 2]
-		return self.ins("eor $%02X,$%02X" % (dp1, dp2))
+	def op44(self): return self.ins("eor A,%s" % self.addr_direct())
+	def op45(self): return self.ins("eor A,%s" % self.addr_absolute())
+	def op46(self): return self.ins("eor A,(X)")
+	def op47(self): return self.ins("eor A,%s" % self.addr_indirect_x())
+	def op48(self): return self.ins("eor A,%s" % self.addr_imm8())
+	def op49(self): return self.direct_direct_lookup("eor")
 	def op4A(self):
 		addr = self.pipe16()
 		bit = (addr >> 13) & 0x7
@@ -583,37 +614,31 @@ class SPC700Disassembler:
 	def op4C(self): return self.ins("lsr %s" % self.addr_absolute())
 	def op4D(self): return self.ins("push X")
 	def op4E(self): return self.ins("tclr1 %s" % self.addr_absolute())
-	def op4F(self): return self.ins("PCALL $%02X" % self.pipe8())
+	def op4F(self): return self.ins("pcall $%02X" % self.pipe8())
 
 	def op50(self): return self.ins("bvc %s" % self.addr_relative())
 
-	def op54(self): return self.ins("eor a,%s" % self.addr_direct_x())
-	def op55(self): return self.ins("eor a,%s" % self.addr_absolute_x())
-	def op56(self): return self.ins("eor a,%s" % self.addr_absolute_y())
-	def op57(self): return self.ins("eor a,%s" % self.addr_indirect_y())
-	def op58(self):
-		dp = self.data[self.pos + 1]
-		imm = self.data[self.pos + 2]
-		return self.ins("eor $%02X,#$%02X" % (dp, imm))
+	def op54(self): return self.ins("eor A,%s" % self.addr_direct_x())
+	def op55(self): return self.ins("eor A,%s" % self.addr_absolute_x())
+	def op56(self): return self.ins("eor A,%s" % self.addr_absolute_y())
+	def op57(self): return self.ins("eor A,%s" % self.addr_indirect_y())
+	def op58(self): return self.direct_imm_lookup("eor")
 	def op59(self): return self.ins("eor (X),(Y)")
 	def op5A(self): return self.ins("cmpw YA,%s" % self.addr_direct())
 	def op5B(self): return self.ins("lsr %s" % self.addr_direct_x())
 	def op5C(self): return self.ins("lsr A")
 	def op5D(self): return self.ins("mov X,A")
 	def op5E(self): return self.ins("cmp Y,%s" % self.addr_absolute())
-	def op5F(self): return self.ins("JMP !%s" % self.addr_absolute_label())
+	def op5F(self): return self.ins("jmp !%s" % self.addr_absolute_label())
 
 	def op60(self): return self.ins("clrc")
 
-	def op64(self): return self.ins("cmp a,%s" % self.addr_direct())
-	def op65(self): return self.ins("cmp a,%s" % self.addr_absolute())
-	def op66(self): return self.ins("cmp a,(X)")
-	def op67(self): return self.ins("cmp a,%s" % self.addr_indirect_x())
-	def op68(self): return self.ins("cmp a,%s" % self.addr_imm8())
-	def op69(self):
-		dp1 = self.data[self.pos + 1]
-		dp2 = self.data[self.pos + 2]
-		return self.ins("cmp $%02X,$%02X" % (dp1, dp2))
+	def op64(self): return self.ins("cmp A,%s" % self.addr_direct())
+	def op65(self): return self.ins("cmp A,%s" % self.addr_absolute())
+	def op66(self): return self.ins("cmp A,(X)")
+	def op67(self): return self.ins("cmp A,%s" % self.addr_indirect_x())
+	def op68(self): return self.ins("cmp A,%s" % self.addr_imm8())
+	def op69(self): return self.direct_direct_lookup("cmp")
 	def op6A(self):
 		addr = self.pipe16()
 		bit = (addr >> 13) & 0x7
@@ -627,19 +652,21 @@ class SPC700Disassembler:
 		rel_byte = self.data[self.pos + 2]
 		rel = rel_byte if rel_byte <= 127 else rel_byte - 256
 		target = (self.start_addr + self.pos + 3 + rel) & 0xFFFF
+
+		# Check for I/O register
+		if dp in self.IO_REGISTERS:
+			reg_name, reg_desc = self.IO_REGISTERS[dp]
+			return self.ins("dbnz %s,%s" % (reg_name, self.get_label_or_addr(target)), comment=reg_desc)
 		return self.ins("dbnz $%02X,%s" % (dp, self.get_label_or_addr(target)))
 	def op6F(self): return self.ins("ret")
 
 	def op70(self): return self.ins("bvs %s" % self.addr_relative())
 
-	def op74(self): return self.ins("cmp a,%s" % self.addr_direct_x())
-	def op75(self): return self.ins("cmp a,%s" % self.addr_absolute_x())
-	def op76(self): return self.ins("cmp a,%s" % self.addr_absolute_y())
-	def op77(self): return self.ins("cmp a,%s" % self.addr_indirect_y())
-	def op78(self):
-		dp = self.data[self.pos + 1]
-		imm = self.data[self.pos + 2]
-		return self.ins("cmp $%02X,#$%02X" % (dp, imm))
+	def op74(self): return self.ins("cmp A,%s" % self.addr_direct_x())
+	def op75(self): return self.ins("cmp A,%s" % self.addr_absolute_x())
+	def op76(self): return self.ins("cmp A,%s" % self.addr_absolute_y())
+	def op77(self): return self.ins("cmp A,%s" % self.addr_indirect_y())
+	def op78(self): return self.direct_imm_lookup("cmp")
 	def op79(self): return self.ins("cmp (X),(Y)")
 	def op7A(self): return self.ins("addw YA,%s" % self.addr_direct())
 	def op7B(self): return self.ins("ror %s" % self.addr_direct_x())
@@ -650,15 +677,12 @@ class SPC700Disassembler:
 
 	def op80(self): return self.ins("setc")
 
-	def op84(self): return self.ins("adc a,%s" % self.addr_direct())
-	def op85(self): return self.ins("adc a,%s" % self.addr_absolute())
-	def op86(self): return self.ins("adc a,(X)")
-	def op87(self): return self.ins("adc a,%s" % self.addr_indirect_x())
-	def op88(self): return self.ins("adc a,%s" % self.addr_imm8())
-	def op89(self):
-		dp1 = self.data[self.pos + 1]
-		dp2 = self.data[self.pos + 2]
-		return self.ins("adc $%02X,$%02X" % (dp1, dp2))
+	def op84(self): return self.ins("adc A,%s" % self.addr_direct())
+	def op85(self): return self.ins("adc A,%s" % self.addr_absolute())
+	def op86(self): return self.ins("adc A,(X)")
+	def op87(self): return self.ins("adc A,%s" % self.addr_indirect_x())
+	def op88(self): return self.ins("adc A,%s" % self.addr_imm8())
+	def op89(self): return self.direct_direct_lookup("adc")
 	def op8A(self):
 		addr = self.pipe16()
 		bit = (addr >> 13) & 0x7
@@ -668,21 +692,15 @@ class SPC700Disassembler:
 	def op8C(self): return self.ins("dec %s" % self.addr_absolute())
 	def op8D(self): return self.ins("mov Y,%s" % self.addr_imm8())
 	def op8E(self): return self.ins("pop PSW")
-	def op8F(self):
-		dp = self.data[self.pos + 1]
-		imm = self.data[self.pos + 2]
-		return self.ins("mov $%02X,#$%02X" % (dp, imm))
+	def op8F(self): return self.direct_imm_lookup("mov")
 
 	def op90(self): return self.ins("bcc %s" % self.addr_relative())
 
-	def op94(self): return self.ins("adc a,%s" % self.addr_direct_x())
-	def op95(self): return self.ins("adc a,%s" % self.addr_absolute_x())
-	def op96(self): return self.ins("adc a,%s" % self.addr_absolute_y())
-	def op97(self): return self.ins("adc a,%s" % self.addr_indirect_y())
-	def op98(self):
-		dp = self.data[self.pos + 1]
-		imm = self.data[self.pos + 2]
-		return self.ins("adc $%02X,#$%02X" % (dp, imm))
+	def op94(self): return self.ins("adc A,%s" % self.addr_direct_x())
+	def op95(self): return self.ins("adc A,%s" % self.addr_absolute_x())
+	def op96(self): return self.ins("adc A,%s" % self.addr_absolute_y())
+	def op97(self): return self.ins("adc A,%s" % self.addr_indirect_y())
+	def op98(self): return self.direct_imm_lookup("adc")
 	def op99(self): return self.ins("adc (X),(Y)")
 	def op9A(self): return self.ins("subw YA,%s" % self.addr_direct())
 	def op9B(self): return self.ins("dec %s" % self.addr_direct_x())
@@ -693,15 +711,12 @@ class SPC700Disassembler:
 
 	def opA0(self): return self.ins("ei")
 
-	def opA4(self): return self.ins("sbc a,%s" % self.addr_direct())
-	def opA5(self): return self.ins("sbc a,%s" % self.addr_absolute())
-	def opA6(self): return self.ins("sbc a,(X)")
-	def opA7(self): return self.ins("sbc a,%s" % self.addr_indirect_x())
-	def opA8(self): return self.ins("sbc a,%s" % self.addr_imm8())
-	def opA9(self):
-		dp1 = self.data[self.pos + 1]
-		dp2 = self.data[self.pos + 2]
-		return self.ins("sbc $%02X,$%02X" % (dp1, dp2))
+	def opA4(self): return self.ins("sbc A,%s" % self.addr_direct())
+	def opA5(self): return self.ins("sbc A,%s" % self.addr_absolute())
+	def opA6(self): return self.ins("sbc A,(X)")
+	def opA7(self): return self.ins("sbc A,%s" % self.addr_indirect_x())
+	def opA8(self): return self.ins("sbc A,%s" % self.addr_imm8())
+	def opA9(self): return self.direct_direct_lookup("sbc")
 	def opAA(self):
 		addr = self.pipe16()
 		bit = (addr >> 13) & 0x7
@@ -715,14 +730,11 @@ class SPC700Disassembler:
 
 	def opB0(self): return self.ins("bcs %s" % self.addr_relative())
 
-	def opB4(self): return self.ins("sbc a,%s" % self.addr_direct_x())
-	def opB5(self): return self.ins("sbc a,%s" % self.addr_absolute_x())
-	def opB6(self): return self.ins("sbc a,%s" % self.addr_absolute_y())
-	def opB7(self): return self.ins("sbc a,%s" % self.addr_indirect_y())
-	def opB8(self):
-		dp = self.data[self.pos + 1]
-		imm = self.data[self.pos + 2]
-		return self.ins("sbc $%02X,#$%02X" % (dp, imm))
+	def opB4(self): return self.ins("sbc A,%s" % self.addr_direct_x())
+	def opB5(self): return self.ins("sbc A,%s" % self.addr_absolute_x())
+	def opB6(self): return self.ins("sbc A,%s" % self.addr_absolute_y())
+	def opB7(self): return self.ins("sbc A,%s" % self.addr_indirect_y())
+	def opB8(self): return self.direct_imm_lookup("sbc")
 	def opB9(self): return self.ins("sbc (X),(Y)")
 	def opBA(self): return self.ins("movw YA,%s" % self.addr_direct())
 	def opBB(self): return self.ins("inc %s" % self.addr_direct_x())
@@ -733,7 +745,7 @@ class SPC700Disassembler:
 
 	def opC0(self): return self.ins("di")
 
-	def opC4(self): return self.ins("mov %s,A" % self.addr_direct())
+	def opC4(self): return self.direct_lookup("mov", "A", direct_first=True)
 	def opC5(self): return self.ins("mov %s,A" % self.addr_absolute())
 	def opC6(self): return self.ins("mov (X),A")
 	def opC7(self): return self.ins("mov %s,A" % self.addr_indirect_x())
@@ -744,7 +756,7 @@ class SPC700Disassembler:
 		bit = (addr >> 13) & 0x7
 		addr = addr & 0x1FFF
 		return self.ins("mov1 $%04X.%d,C" % (addr, bit))
-	def opCB(self): return self.ins("mov %s,Y" % self.addr_direct())
+	def opCB(self): return self.direct_lookup("mov", "Y", direct_first=True)
 	def opCC(self): return self.ins("mov %s,Y" % self.addr_absolute())
 	def opCD(self): return self.ins("mov X,%s" % self.addr_imm8())
 	def opCE(self): return self.ins("pop X")
@@ -756,7 +768,7 @@ class SPC700Disassembler:
 	def opD5(self): return self.ins("mov %s,A" % self.addr_absolute_x())
 	def opD6(self): return self.ins("mov %s,A" % self.addr_absolute_y())
 	def opD7(self): return self.ins("mov %s,A" % self.addr_indirect_y())
-	def opD8(self): return self.ins("mov %s,X" % self.addr_direct())
+	def opD8(self): return self.direct_lookup("mov", "X", direct_first=True)
 	def opD9(self): return self.ins("mov %s,Y" % self.addr_direct_x())
 	def opDA(self): return self.ins("movw %s,YA" % self.addr_direct())
 	def opDB(self): return self.ins("mov %s,Y" % self.addr_direct_x())
@@ -772,18 +784,18 @@ class SPC700Disassembler:
 
 	def opE0(self): return self.ins("clrv")
 
-	def opE4(self): return self.ins("mov a,%s" % self.addr_direct())
-	def opE5(self): return self.ins("mov a,%s" % self.addr_absolute())
-	def opE6(self): return self.ins("mov a,(X)")
-	def opE7(self): return self.ins("mov a,%s" % self.addr_indirect_x())
-	def opE8(self): return self.ins("mov a,%s" % self.addr_imm8())
+	def opE4(self): return self.direct_lookup("mov", "A", direct_first=False)
+	def opE5(self): return self.ins("mov A,%s" % self.addr_absolute())
+	def opE6(self): return self.ins("mov A,(X)")
+	def opE7(self): return self.ins("mov A,%s" % self.addr_indirect_x())
+	def opE8(self): return self.ins("mov A,%s" % self.addr_imm8())
 	def opE9(self): return self.ins("mov X,%s" % self.addr_absolute())
 	def opEA(self):
 		addr = self.pipe16()
 		bit = (addr >> 13) & 0x7
 		addr = addr & 0x1FFF
 		return self.ins("not1 $%04X.%d" % (addr, bit))
-	def opEB(self): return self.ins("mov Y,%s" % self.addr_direct())
+	def opEB(self): return self.direct_lookup("mov", "Y", direct_first=False)
 	def opEC(self): return self.ins("mov Y,%s" % self.addr_absolute())
 	def opED(self): return self.ins("notc")
 	def opEE(self): return self.ins("pop Y")
@@ -791,16 +803,13 @@ class SPC700Disassembler:
 
 	def opF0(self): return self.ins("beq %s" % self.addr_relative())
 
-	def opF4(self): return self.ins("mov a,%s" % self.addr_direct_x())
-	def opF5(self): return self.ins("mov a,%s" % self.addr_absolute_x())
-	def opF6(self): return self.ins("mov a,%s" % self.addr_absolute_y())
-	def opF7(self): return self.ins("mov a,%s" % self.addr_indirect_y())
-	def opF8(self): return self.ins("mov X,%s" % self.addr_direct())
+	def opF4(self): return self.ins("mov A,%s" % self.addr_direct_x())
+	def opF5(self): return self.ins("mov A,%s" % self.addr_absolute_x())
+	def opF6(self): return self.ins("mov A,%s" % self.addr_absolute_y())
+	def opF7(self): return self.ins("mov A,%s" % self.addr_indirect_y())
+	def opF8(self): return self.direct_lookup("mov", "X", direct_first=False)
 	def opF9(self): return self.ins("mov X,%s" % self.addr_direct_y())
-	def opFA(self):
-		dp1 = self.data[self.pos + 1]
-		dp2 = self.data[self.pos + 2]
-		return self.ins("mov $%02X,$%02X" % (dp1, dp2))
+	def opFA(self): return self.direct_direct_lookup("mov")
 	def opFB(self): return self.ins("mov Y,%s" % self.addr_direct_x())
 	def opFC(self): return self.ins("inc Y")
 	def opFD(self): return self.ins("mov Y,A")
