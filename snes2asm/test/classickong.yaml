@@ -358,9 +358,17 @@ decoders:
   end: 0x16829
 - type: array
   label: itemSpriteTable
-  size: 2
   start: 0x1622F
   end: 0x16239
+  struct:
+    sprite_attr:
+      size: 2
+      bitfields:
+        tile_num: {bits: "0-8", mask: 0x01FF}
+        palette: {bits: "9-11", mask: 0x0E00, shift: 9}
+        priority: {bits: "12-13", mask: 0x3000, shift: 12}
+        hflip: {bit: 14}
+        vflip: {bit: 15}
 - type: array
   label: fireBallJumpInAnimation
   start: 0x16239
@@ -369,7 +377,15 @@ decoders:
   label: fireBallSpawnAnim
   start: 0x16299
   end: 0x162C5
-  size: 2
+  struct:
+    sprite_attr:
+      size: 2
+      bitfields:
+        tile_num: {bits: "0-8", mask: 0x01FF}
+        palette: {bits: "9-11", mask: 0x0E00, shift: 9}
+        priority: {bits: "12-13", mask: 0x3000, shift: 12}
+        hflip: {bit: 14}
+        vflip: {bit: 15}
 - type: array
   label: bounce_speed
   start: 0x162C5
@@ -379,12 +395,28 @@ decoders:
   label: playerWalkAnimLeft
   start: 0x162D9
   end: 0x162E5
-  size: 2
+  struct:
+    sprite_attr:
+      size: 2
+      bitfields:
+        tile_num: {bits: "0-8", mask: 0x01FF}
+        palette: {bits: "9-11", mask: 0x0E00, shift: 9}
+        priority: {bits: "12-13", mask: 0x3000, shift: 12}
+        hflip: {bit: 14}
+        vflip: {bit: 15}
 - type: array
   label: playerWalkAnimRight
   start: 0x162E5
   end: 0x162F1
-  size: 2
+  struct:
+    sprite_attr:
+      size: 2
+      bitfields:
+        tile_num: {bits: "0-8", mask: 0x01FF}
+        palette: {bits: "9-11", mask: 0x0E00, shift: 9}
+        priority: {bits: "12-13", mask: 0x3000, shift: 12}
+        hflip: {bit: 14}
+        vflip: {bit: 15}
 - type: spc700
   label: spc_audio_driver
   start: 0x20000

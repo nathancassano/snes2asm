@@ -172,22 +172,89 @@ class TextDecoder(Decoder):
 
 class ArrayDecoder(Decoder):
 
-	def __init__(self, label, start, end, compress=None, size=1, struct=None):
+	def __init__(self, label, start, end, compress=None, size=1, struct=None, index=None):
 		Decoder.__init__(self, label, start, end, compress)
 		self.size = size
 		self.struct = struct
+		self.index = index
 
-		if self.struct == None and (self.size > 4 or self.size < 1):
-			raise ValueError("ArrayDecoder: Invalid array element size %d for label %s" % (self.size, label))
+		if self.struct != None:
+			# Parse struct definition
+			self.struct_fields = _parse_struct_fields(self.struct)
+			self.size = sum(f['size'] for f in self.struct_fields)
+		else:
+			self.struct_fields = None
+			if self.size > 4 or self.size < 1:
+				raise ValueError("ArrayDecoder: Invalid array element size %d for label %s" % (self.size, label))
 
-		if (end - start) % size != 0:
-			raise ValueError("ArrayDecoder: %s start and end do not align with size %i" % (label, size))
+		# If index is provided, set its parent and add to sub_decoders
+		if self.index != None:
+			self.index.parent = self
+			self.sub_decoders.append(self.index)
+		else:
+			# Only validate alignment if no index (index allows variable-length entries)
+			if (end - start) % self.size != 0:
+				raise ValueError("ArrayDecoder: %s start and end do not align with size %i" % (label, self.size))
 
 	def decode(self, data):
-		if self.struct != None:
-			# TODO
-			pass
+		if self.struct_fields != None:
+			# Decode as array of structs
+			struct_size = self.size
+
+			if self.index != None:
+				# Use index to determine struct boundaries (variable-length structs)
+				num_structs = len(self.index.values)
+				struct_offsets = self.index.values
+			else:
+				# Fixed-size structs
+				num_structs = len(data) // struct_size
+				struct_offsets = [i * struct_size for i in range(num_structs)]
+
+			for struct_idx in range(num_structs):
+				struct_offset = struct_offsets[struct_idx]
+				show_label = (struct_idx == 0 and self.label != None)
+
+				# Generate label for this struct instance
+				if num_structs > 1:
+					struct_label = "%s_%d:" % (self.label, struct_idx)
+				else:
+					struct_label = self.label + ":"
+
+				field_offset = 0
+				for field in self.struct_fields:
+					field_size = field['size']
+					data_offset = struct_offset + field_offset
+
+					if 'bitfields' in field:
+						# Generate bitfield expression
+						expr, comment = _generate_bitfield_expression(field, data, data_offset)
+						directive = Decoder.data_directive(field_size)
+						line = "%s %s" % (directive, expr)
+
+						# Add comment with field name and decoded values
+						comment = "%s: %s" % (field['name'], comment)
+
+						if show_label:
+							yield (data_offset, Instruction(line, preamble=struct_label, comment=comment))
+							show_label = False
+						else:
+							yield (data_offset, Instruction(line, comment=comment))
+					else:
+						# Simple field
+						value = Decoder.val(data, data_offset, field_size)
+						directive = Decoder.data_directive(field_size)
+						form = Decoder.hex_fmt[field_size - 1]
+						line = "%s %s" % (directive, form % value)
+
+						if show_label:
+							yield (data_offset, Instruction(line, preamble=struct_label, comment=field['name']))
+							show_label = False
+						else:
+							yield (data_offset, Instruction(line, comment=field['name']))
+
+					field_offset += field_size
 		else:
+			# Original simple array behavior
 			instr = Decoder.data_directive(self.size) + ' '
 			form = Decoder.hex_fmt[self.size-1]
 			show_label = self.label != None
@@ -200,26 +267,127 @@ class ArrayDecoder(Decoder):
 				else:
 					yield (y, Instruction(line))
 
-class IndexDecoder(Decoder):
-	def __init__(self, label, start, end, compress=None, size=2):
+class StructDecoder(Decoder):
+	"""
+	Decoder for structured data with named fields.
+	Supports both simple fields and bit-packed fields.
+	"""
+
+	def __init__(self, label, start, end, compress=None, fields=None, count=None):
 		Decoder.__init__(self, label, start, end, compress)
-		if (end - start) % size != 0:
-			raise ValueError("Index: %s start and end do not align with size %i" % (label, size))
+
+		if fields is None:
+			raise ValueError("StructDecoder %s: missing 'fields' parameter" % label)
+
+		# Parse field definitions
+		self.struct_fields = _parse_struct_fields(fields)
+		self.struct_size = sum(f['size'] for f in self.struct_fields)
+
+		# Determine number of structs
+		data_size = end - start
+		if count is not None:
+			# Explicit count provided
+			self.count = count
+			if data_size != count * self.struct_size:
+				raise ValueError(
+					"StructDecoder %s: size mismatch. Data size %d != count %d * struct_size %d"
+					% (label, data_size, count, self.struct_size)
+				)
+		else:
+			# Infer count from data size
+			if data_size % self.struct_size != 0:
+				raise ValueError(
+					"StructDecoder %s: data size %d does not align with struct size %d"
+					% (label, data_size, self.struct_size)
+				)
+			self.count = data_size // self.struct_size
+
+	def decode(self, data):
+		"""Generate assembly output for struct data."""
+		for struct_idx in range(self.count):
+			struct_offset = struct_idx * self.struct_size
+			show_label = (struct_idx == 0 and self.label != None)
+
+			# Generate label for this struct instance
+			if self.count > 1:
+				struct_label = "%s_%d:" % (self.label, struct_idx)
+			else:
+				struct_label = self.label + ":"
+
+			field_offset = 0
+			for field in self.struct_fields:
+				field_size = field['size']
+				data_offset = struct_offset + field_offset
+
+				if 'bitfields' in field:
+					# Generate bitfield expression
+					expr, comment = _generate_bitfield_expression(field, data, data_offset)
+					directive = Decoder.data_directive(field_size)
+					line = "%s %s" % (directive, expr)
+
+					# Add comment with field name and decoded values
+					comment = "%s: %s" % (field['name'], comment)
+
+					if show_label:
+						yield (data_offset, Instruction(line, preamble=struct_label, comment=comment))
+						show_label = False
+					else:
+						yield (data_offset, Instruction(line, comment=comment))
+				else:
+					# Simple field
+					value = Decoder.val(data, data_offset, field_size)
+					directive = Decoder.data_directive(field_size)
+					form = Decoder.hex_fmt[field_size - 1]
+					line = "%s %s" % (directive, form % value)
+
+					if show_label:
+						yield (data_offset, Instruction(line, preamble=struct_label, comment=field['name']))
+						show_label = False
+					else:
+						yield (data_offset, Instruction(line, comment=field['name']))
+
+				field_offset += field_size
+
+class IndexDecoder(Decoder):
+	def __init__(self, label, start=0, end=0, compress=None, size=2):
+		Decoder.__init__(self, label, start, end, compress)
 		self.size = size
 		self.parent = None
 		self.values = []
+		self.disasm = None  # Reference to disassembler for label lookup
+
+		# Validate alignment
+		if (end - start) % size != 0:
+			raise ValueError("Index: %s start and end do not align with size %i" % (label, size))
 
 	def decode(self, data):
 		instr = Decoder.data_directive(self.size)
 		index = 0
+
 		for pos in range(0, len(data), self.size):
 			offset = Decoder.val(data, pos, self.size)
 			self.values.append(offset)
-			if offset + self.parent.start > self.parent.end:
+
+			# Try to find a label for this address
+			label_name = None
+			if self.disasm and offset in self.disasm.code_labels:
+				label_name = self.disasm.code_labels[offset]
+
+			if self.parent and offset + self.parent.start > self.parent.end:
 				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index'))
 			else:
-				yield(pos, Instruction('%s %s_%i - %s_0' % (instr, self.parent.label, index, self.parent.label), 
-					preamble="%s_%i:" % (self.label, index)))
+				if label_name:
+					# Use label name if found
+					yield(pos, Instruction('%s %s' % (instr, label_name),
+						preamble="%s_%i:" % (self.label, index)))
+				elif self.parent:
+					# Use parent-relative offset
+					yield(pos, Instruction('%s %s_%i - %s_0' % (instr, self.parent.label, index, self.parent.label),
+						preamble="%s_%i:" % (self.label, index)))
+				else:
+					# No parent and no label, output hex value
+					yield(pos, Instruction('%s $%0*X' % (instr, self.size * 2, offset),
+						preamble="%s_%i:" % (self.label, index)))
 			index = index + 1
 
 	def size(self):
@@ -501,6 +669,103 @@ class SPC700Decoder(Decoder):
 
 _ESCAPE_CHARS = ['\\' + '0', '\\x01', '\\x02', '\\x03', '\\x04', '\\x05', '\\x06', '\\x07', '\\x08', '\\t', '\\n', '\\x0b', '\\x0c', '\\r', '\\x0e', '\\x0f', '\\x10', '\\x11', '\\x12', '\\x13', '\\x14', '\\x15', '\\x16', '\\x17', '\\x18', '\\x19', '\\x1a', '\\x1b', '\\x1c', '\\x1d', '\\x1e', '\\x1f', ' ', '!', '\\"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ':', ';', '<', '=', '>', '?', '@', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', '[', '\\', ']', '^', '_', '`', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z', '{', '|', '}', '~', '\x7f', '\\x80', '\\x81', '\\x82', '\\x83', '\\x84', '\\x85', '\\x86', '\\x87', '\\x88', '\\x89', '\\x8a', '\\x8b', '\\x8c', '\\x8d', '\\x8e', '\\x8f', '\\x90', '\\x91', '\\x92', '\\x93', '\\x94', '\\x95', '\\x96', '\\x97', '\\x98', '\\x99', '\\x9a', '\\x9b', '\\x9c', '\\x9d', '\\x9e', '\\x9f', '\\xa0', '\\xa1', '\\xa2', '\\xa3', '\\xa4', '\\xa5', '\\xa6', '\\xa7', '\\xa8', '\\xa9', '\\xaa', '\\xab', '\\xac', '\\xad', '\\xae', '\\xaf', '\\xb0', '\\xb1', '\\xb2', '\\xb3', '\\xb4', '\\xb5', '\\xb6', '\\xb7', '\\xb8', '\\xb9', '\\xba', '\\xbb', '\\xbc', '\\xbd', '\\xbe', '\\xbf', '\\xc0', '\\xc1', '\\xc2', '\\xc3', '\\xc4', '\\xc5', '\\xc6', '\\xc7', '\\xc8', '\\xc9', '\\xca', '\\xcb', '\\xcc', '\\xcd', '\\xce', '\\xcf', '\\xd0', '\\xd1', '\\xd2', '\\xd3', '\\xd4', '\\xd5', '\\xd6', '\\xd7', '\\xd8', '\\xd9', '\\xda', '\\xdb', '\\xdc', '\\xdd', '\\xde', '\\xdf', '\\xe0', '\\xe1', '\\xe2', '\\xe3', '\\xe4', '\\xe5', '\\xe6', '\\xe7', '\\xe8', '\\xe9', '\\xea', '\\xeb', '\\xec', '\\xed', '\\xee', '\\xef', '\\xf0', '\\xf1', '\\xf2', '\\xf3', '\\xf4', '\\xf5', '\\xf6', '\\xf7', '\\xf8', '\\xf9', '\\xfa', '\\xfb', '\\xfc', '\\xfd', '\\xfe', '\\xff']
 
+
+def _parse_struct_fields(struct_def):
+	"""Parse struct field definitions from YAML config.
+
+	Args:
+		struct_def: Dictionary mapping field names to sizes or field configs
+
+	Returns:
+		List of field dictionaries with 'name', 'size', and optional 'bitfields'
+	"""
+	fields = []
+	for field_name, field_config in struct_def.items():
+		if isinstance(field_config, int):
+			# Simple field: fieldname: size
+			fields.append({'name': field_name, 'size': field_config})
+		elif isinstance(field_config, dict):
+			# Bitfield field: fieldname: {size: N, bitfields: {...}}
+			if 'size' not in field_config:
+				raise ValueError("Struct field '%s' missing 'size' parameter" % field_name)
+
+			field = {
+				'name': field_name,
+				'size': field_config['size']
+			}
+
+			if 'bitfields' in field_config:
+				field['bitfields'] = _parse_bitfields(field_config['bitfields'], field_name)
+
+			fields.append(field)
+		else:
+			raise ValueError("Struct field '%s' must be an integer or dictionary" % field_name)
+
+	return fields
+
+def _parse_bitfields(bitfields_def, field_name):
+	"""Parse bitfield definitions.
+
+	Args:
+		bitfields_def: Dictionary of bitfield definitions
+		field_name: Parent field name for error messages
+
+	Returns:
+		List of bitfield dictionaries
+	"""
+	bitfields = []
+	for bf_name, bf_config in bitfields_def.items():
+		bitfield = {'name': bf_name}
+
+		if 'bit' in bf_config:
+			# Single bit field
+			bitfield['bit'] = bf_config['bit']
+			bitfield['shift'] = bf_config['bit']
+			bitfield['mask'] = 1 << bf_config['bit']
+		elif 'bits' in bf_config:
+			# Multi-bit field (e.g., "0-9")
+			bits_range = bf_config['bits']
+			if isinstance(bits_range, str) and '-' in bits_range:
+				low, high = map(int, bits_range.split('-'))
+				bitfield['bits'] = (low, high)
+				bitfield['shift'] = bf_config.get('shift', low)
+				bitfield['mask'] = bf_config.get('mask', ((1 << (high - low + 1)) - 1) << low)
+			else:
+				raise ValueError("Bitfield '%s' in field '%s' has invalid 'bits' format" % (bf_name, field_name))
+		else:
+			raise ValueError("Bitfield '%s' in field '%s' must have 'bit' or 'bits' parameter" % (bf_name, field_name))
+
+		bitfields.append(bitfield)
+
+	return bitfields
+
+def _generate_bitfield_expression(field, data, offset):
+	"""Generate WLA-DX expression for bit-packed field.
+
+	Args:
+		field: Field dictionary with bitfields
+		data: Raw data bytes
+		offset: Offset into data
+
+	Returns:
+		Tuple of (expression_string, comment_string)
+	"""
+	size = field['size']
+	raw_value = Decoder.val(data, offset, size)
+
+	# Extract bitfield values
+	parts = []
+	comment_parts = []
+
+	for bf in field['bitfields']:
+		bf_value = (raw_value & bf['mask']) >> bf['shift']
+		parts.append("($%0*X << %d)" % (size * 2, bf_value, bf['shift']))
+		comment_parts.append("%s=$%0*X" % (bf['name'], size * 2, bf_value))
+
+	expression = ' | '.join(parts)
+	comment = ' '.join(comment_parts)
+
+	return (expression, comment)
 
 def ansi_escape(subject):
 	if type(subject) == str:

@@ -10,7 +10,7 @@ class Configurator:
 		fp = open(file_path, 'r')
 		self.config = yaml.safe_load(fp)
 		fp.close()
-		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranslationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder, 'sound': SoundDecoder, 'spc700': SPC700Decoder}
+		self.decoders_enabled = {'data': Decoder, 'array': ArrayDecoder, 'struct': StructDecoder, 'text': TextDecoder, 'gfx': GraphicDecoder, 'palette': PaletteDecoder, 'bin': BinaryDecoder, 'translation': TranslationMap, 'index': IndexDecoder, 'tilemap': TileMapDecoder, 'sound': SoundDecoder, 'spc700': SPC700Decoder}
 		self._validate()
 		self.label_lookup = {}
 
@@ -68,6 +68,7 @@ class Configurator:
 		decoder_class = self.decoders_enabled[decode_conf['type']]
 		if 'type' not in decode_conf:
 			raise ValueError("Decoder missing type")
+		decoder_type = decode_conf['type']  # Save type before deleting
 		del(decode_conf['type'])
 
 		if 'label' not in decode_conf:
@@ -96,6 +97,11 @@ class Configurator:
 		# {palette: {'param': 'value'} } => {'palette: <PaletteDecoder instance at 0x1028e4fa0>}
 		# {decoders: [{'type': 'sound', ...}, ...]} => {'decoders': [<SoundDecoder instance>, ...]}
 		for key, value in decode_conf.items():
+			# Special case: 'struct' is both a decoder type and an ArrayDecoder parameter
+			# Skip processing it as a nested decoder if parent is ArrayDecoder
+			if key == 'struct' and decoder_type == 'array':
+				continue
+
 			# If the property of a decoder matches the name of a decoder class
 			if key in self.decoders_enabled.keys():
 				# Is a label reference to another decoder
@@ -154,6 +160,10 @@ class Configurator:
 			print("Error: Missing a required parameter from label: %s" % str(label))
 			print(error)
 			sys.exit()
+
+		# Set disasm reference for IndexDecoder to enable label lookup
+		if decoder_class.__name__ == 'IndexDecoder':
+			decoder_inst.disasm = disasm
 
 		# Only add to disassembler if requested (nested decoders are not added)
 		if add_to_disasm:

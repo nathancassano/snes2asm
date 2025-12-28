@@ -25,7 +25,8 @@ SNES2ASM is more than a disassembler. Generate assembly code with insights! Cont
 * SPC700 audio processor disassembly support with nested decoders for embedded data.
 * Advanced code path detection and label generation.
 * SNES register symbol detection with code commentary.
-* Support for arrays, indices and encoded text.
+* Support for arrays, indices, structured data with bitfields, and encoded text.
+* Automatic label lookup in index tables for readable assembly output.
 * Integrated data decompression and recompression.
 * Custom configuration of game disassembly.
 
@@ -156,10 +157,11 @@ List of decoder objects and their parameters.
 - **sound** - BRR audio samples (SNES audio format)
 - **text** - Encoded text with translation tables
 - **tilemap** - Tilemap data with various tile sizes
-- **array** - Structured data arrays with configurable element size
+- **array** - Structured data arrays with configurable element size or struct fields
+- **struct** - Structured data with named fields and bitfield support
 - **bin** - Binary data (outputs as .INCBIN directive)
 - **translation** - Character translation tables for text decoding
-- **index** - Index/pointer tables
+- **index** - Index/pointer tables with automatic label lookup
 
 #### Graphics Decoder Options:
 | Option | Example | Description |
@@ -178,6 +180,50 @@ List of decoder objects and their parameters.
 | Option | Example | Description |
 |--------|---------|-------------|
 | **size** | 2 | Size of each array element in bytes (1, 2, 3, or 4) |
+| **struct** | {hp: 1, attack: 1} | Structured fields with named elements (see Struct Decoder) |
+| **index** | {start: 0x1000, end: 0x1010, size: 2} | Index table for variable-positioned array elements |
+
+#### Struct Decoder Options:
+| Option | Example | Description |
+|--------|---------|-------------|
+| **fields** | {width: 1, height: 1} | Named fields with sizes (1-4 bytes each) |
+| **count** | 10 | Number of struct instances (optional, auto-calculated from size) |
+
+**Field Types:**
+- **Simple fields**: `field_name: size_in_bytes` (e.g., `hp: 1`, `tileset_id: 2`)
+- **Bitfield fields**: Bit-packed data with sub-fields extracted using masks and shifts
+
+**Bitfield Syntax:**
+```yaml
+field_name:
+  size: 2  # Total field size in bytes
+  bitfields:
+    subfield1: {bits: "0-9", mask: 0x03FF}           # Bit range
+    subfield2: {bit: 10}                             # Single bit
+    subfield3: {bits: "12-14", mask: 0x7000, shift: 12}  # With custom shift
+```
+
+**Generated output for bitfields:**
+```asm
+.dw ($042 << 0) | (1 << 10) | (7 << 12)  ; field_name: subfield1=$042 subfield2=1 subfield3=7
+```
+
+This generates editable expressions that WLA-DX assembles into the correct bit-packed value.
+
+#### Index Decoder Options:
+| Option | Example | Description |
+|--------|---------|-------------|
+| **size** | 2 | Size of each pointer/offset in bytes (1, 2, 3, or 4) |
+
+**Automatic Label Lookup:**
+IndexDecoder automatically looks up labels for decoded pointer values. When a decoded address matches a label defined in the `labels:` section, it outputs the label name instead of a hex value:
+
+```asm
+music_table_0:
+    .dw music_game_start  ; Address matched label
+music_table_1:
+    .dw $7FFF             ; No label, uses hex
+```
 
 #### Text Decoder Options:
 | Option | Example | Description |
@@ -216,7 +262,7 @@ Set of value key pairs which maps a memory address to a named symbol.
 | **lives:** | 0xDAA7 |
 
 ### structs:
--- TODO
+This section is deprecated. Use the `struct` decoder type or the `struct` parameter in `array` decoders instead. See the StructDecoder and ArrayDecoder documentation above for details.
 
 ### Example YAML Configuration
 
@@ -292,10 +338,57 @@ decoders:
         start: 0x410
         end: 0x510
 
+  # Array with structured fields
+  - type: array
+    label: enemy_stats
+    start: 0x30000
+    end: 0x30028  # 4 enemies * 10 bytes each
+    struct:
+      hp: 1
+      attack: 1
+      defense: 1
+      sprite_id: 2
+      ai_type: 1
+      flags:
+        size: 2
+        bitfields:
+          can_fly: {bit: 0}
+          is_boss: {bit: 1}
+          palette: {bits: "2-4", mask: 0x001C, shift: 2}
+      drop_item: 2
+
+  # Standalone struct decoder for level headers
+  - type: struct
+    label: level_headers
+    start: 0x40000
+    end: 0x40020
+    count: 4  # 4 levels
+    fields:
+      width: 1
+      height: 1
+      tileset_id: 2
+      music_id: 1
+      bg_color:
+        size: 2
+        bitfields:
+          red: {bits: "0-4", mask: 0x001F}
+          green: {bits: "5-9", mask: 0x03E0, shift: 5}
+          blue: {bits: "10-14", mask: 0x7C00, shift: 10}
+
+  # Index table with automatic label lookup
+  - type: index
+    label: music_table
+    start: 0x50000
+    end: 0x50006  # 3 entries * 2 bytes
+    size: 2
+
 # Define custom labels for specific addresses
 labels:
   read_joy: 0x182EC     # Function at ROM offset
   draw_oam: 0x13983
+  music_title: 0x60000  # Music pointers (used by music_table)
+  music_level1: 0x61000
+  music_boss: 0x62000
 
 # Define RAM/memory symbols
 memory:
