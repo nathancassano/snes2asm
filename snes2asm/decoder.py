@@ -373,21 +373,27 @@ class IndexDecoder(Decoder):
 			if self.disasm and offset in self.disasm.code_labels:
 				label_name = self.disasm.code_labels[offset]
 
+			# Add main table label to the first entry
+			if index == 0:
+				entry_label = "%s:\n%s_%i:" % (self.label, self.label, index)
+			else:
+				entry_label = "%s_%i:" % (self.label, index)
+
 			if self.parent and offset + self.parent.start > self.parent.end:
-				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index'))
+				yield(pos, Instruction('%s %i' % (instr, offset), comment='Invalid index', preamble=entry_label))
 			else:
 				if label_name:
 					# Use label name if found
 					yield(pos, Instruction('%s %s' % (instr, label_name),
-						preamble="%s_%i:" % (self.label, index)))
+						preamble=entry_label))
 				elif self.parent:
 					# Use parent-relative offset
 					yield(pos, Instruction('%s %s_%i - %s_0' % (instr, self.parent.label, index, self.parent.label),
-						preamble="%s_%i:" % (self.label, index)))
+						preamble=entry_label))
 				else:
 					# No parent and no label, output hex value
 					yield(pos, Instruction('%s $%0*X' % (instr, self.size * 2, offset),
-						preamble="%s_%i:" % (self.label, index)))
+						preamble=entry_label))
 			index = index + 1
 
 	def size(self):
