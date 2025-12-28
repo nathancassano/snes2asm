@@ -7,7 +7,38 @@ BRR=brr
 ROM=game
 COBJ=game.o
 
-all: graphics sound spc700 encodings $(ROM).smc
+# Check if WLA-DX binaries are available
+.PHONY: check-wla
+check-wla:
+	@command -v $(AS) >/dev/null 2>&1 || { \
+		echo ""; \
+		echo "ERROR: $(AS) not found!"; \
+		echo ""; \
+		echo "Please install WLA-DX Assembler:"; \
+		echo "  https://github.com/vhelin/wla-dx"; \
+		echo ""; \
+		exit 1; \
+	}
+	@command -v $(AS_SPC700) >/dev/null 2>&1 || { \
+		echo ""; \
+		echo "ERROR: $(AS_SPC700) not found!"; \
+		echo ""; \
+		echo "Please install WLA-DX Assembler:"; \
+		echo "  https://github.com/vhelin/wla-dx"; \
+		echo ""; \
+		exit 1; \
+	}
+	@command -v $(LD) >/dev/null 2>&1 || { \
+		echo ""; \
+		echo "ERROR: $(LD) not found!"; \
+		echo ""; \
+		echo "Please install WLA-DX Assembler:"; \
+		echo "  https://github.com/vhelin/wla-dx"; \
+		echo ""; \
+		exit 1; \
+	}
+
+all: check-wla graphics sound spc700 encodings $(ROM).smc
 	echo "Done"
 
 .PHONY: graphics
