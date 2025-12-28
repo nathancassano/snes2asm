@@ -409,10 +409,15 @@ class StructDecoderTest(unittest.TestCase):
 
 		# Decode index first
 		index_data = test_data[0:6]
-		list(index_decoder.decode(index_data))
+		index_instructions = list(index_decoder.decode(index_data))
 
 		# Verify index values
 		self.assertEqual(index_decoder.values, [0, 4, 8])
+
+		# Verify first index entry has both main and indexed labels
+		first_index_text = index_instructions[0][1].text()
+		self.assertIn('struct_index:', first_index_text)
+		self.assertIn('struct_index_0:', first_index_text)
 
 		# Decode array
 		array_data = test_data[6:18]
@@ -467,12 +472,19 @@ class StructDecoderTest(unittest.TestCase):
 		# Should have 5 instructions
 		self.assertEqual(len(instructions), 5)
 
-		# First 3 entries should use label names
-		self.assertIn('main_loop', instructions[0][1].text())
-		self.assertNotIn('$8000', instructions[0][1].text())
+		# First entry should have both main label and indexed label
+		first_entry_text = instructions[0][1].text()
+		self.assertIn('function_table:', first_entry_text)
+		self.assertIn('function_table_0:', first_entry_text)
+		self.assertIn('main_loop', first_entry_text)
+		self.assertNotIn('$8000', first_entry_text)
 
-		self.assertIn('handle_input', instructions[1][1].text())
-		self.assertNotIn('$8100', instructions[1][1].text())
+		# Subsequent entries should only have indexed labels
+		second_entry_text = instructions[1][1].text()
+		self.assertNotIn('function_table:\n', second_entry_text)
+		self.assertIn('function_table_1:', second_entry_text)
+		self.assertIn('handle_input', second_entry_text)
+		self.assertNotIn('$8100', second_entry_text)
 
 		self.assertIn('update_sprites', instructions[2][1].text())
 		self.assertNotIn('$8200', instructions[2][1].text())
@@ -518,11 +530,16 @@ class StructDecoderTest(unittest.TestCase):
 		# Should have 3 instructions
 		self.assertEqual(len(instructions), 3)
 
+		# First entry should have both main label and indexed label
+		first_entry_text = instructions[0][1].text()
+		self.assertIn('level_ptrs:', first_entry_text)
+		self.assertIn('level_ptrs_0:', first_entry_text)
+
 		# Should use .dl directive for 24-bit
-		self.assertIn('.dl', instructions[0][1].text())
+		self.assertIn('.dl', first_entry_text)
 
 		# First 2 should use labels
-		self.assertIn('rom_start', instructions[0][1].text())
+		self.assertIn('rom_start', first_entry_text)
 		self.assertIn('level_1_data', instructions[1][1].text())
 
 		# Last should use hex
@@ -549,8 +566,18 @@ class StructDecoderTest(unittest.TestCase):
 		instructions = list(index.decode(test_data))
 
 		self.assertEqual(len(instructions), 2)
-		self.assertIn('$8000', instructions[0][1].text())
-		self.assertIn('$8100', instructions[1][1].text())
+
+		# First entry should have both main label and indexed label
+		first_entry_text = instructions[0][1].text()
+		self.assertIn('test_table:', first_entry_text)
+		self.assertIn('test_table_0:', first_entry_text)
+		self.assertIn('$8000', first_entry_text)
+
+		# Second entry should only have indexed label
+		second_entry_text = instructions[1][1].text()
+		self.assertNotIn('test_table:\n', second_entry_text)
+		self.assertIn('test_table_1:', second_entry_text)
+		self.assertIn('$8100', second_entry_text)
 
 
 if __name__ == '__main__':
