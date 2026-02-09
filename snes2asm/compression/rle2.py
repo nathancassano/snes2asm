@@ -12,7 +12,7 @@ def compress(data):
 def decompress(data):
 	out = bytearray()
 	decomp = rle1.decompress(data)
-	half = int(len(decomp)/2)
+	half = len(decomp) // 2
 	data1 = decomp[:half]
 	data2 = decomp[half:]
 	for i in range(0,half):
