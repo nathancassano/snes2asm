@@ -24,9 +24,9 @@ class ProjectTest(unittest.TestCase):
 		os.chdir(cwd)
 
 		# Compare binary files
-		with open(path, "r") as f:
+		with open(path, "rb") as f:
 			expected_lines = self.hexdump(f.read())
-		with open(game, "r") as f:
+		with open(game, "rb") as f:
 			actual_lines = self.hexdump(f.read())
 
 		self.assertListEqual(expected_lines, actual_lines)
@@ -37,7 +37,7 @@ class ProjectTest(unittest.TestCase):
 	def hexdump(self, data):
 		out = []
 		for h in range(0, len(data), 16):
-			out.append(('%06X ' % h) + ' '.join(['%02x' % ord(c) for c in data[h:h+16]]))
+			out.append(('%06X ' % h) + ' '.join(['%02x' % c for c in data[h:h+16]]))
 		return out
 
 if __name__ == '__main__':

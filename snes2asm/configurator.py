@@ -17,7 +17,8 @@ class Configurator:
 	def _validate(self):
 		if 'memory' in self.config:
 			memory = self.config['memory']
-			for variable in memory.keys():
+			# Create a list of keys to avoid RuntimeError from modifying dict during iteration
+			for variable in list(memory.keys()):
 				addr = memory[variable]
 				if addr > 0x2000 and addr < 0x7E0000:
 					memory.pop(variable)
