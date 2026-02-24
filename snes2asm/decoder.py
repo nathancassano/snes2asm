@@ -94,7 +94,7 @@ class Headers(Decoder):
 		Decoder.__init__(self, label="Headers", start=start, end=end)
 
 	def decode(self, data):
-		yield (0, Instruction('; Auto-generated headers', preamble=self.label+":"))
+		yield (0, Instruction('; Auto-generated headers'))
 
 class BinaryDecoder(Decoder):
 	def __init__(self, label, start, end, compress=None):

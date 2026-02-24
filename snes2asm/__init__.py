@@ -34,7 +34,7 @@ def main(argv=None):
 	parser.add_argument('-e', '--empty-fill', default=255, help="Default byte value for fill empty ROM space")
 	parser.add_argument('-x', '--hex', action='store_true', default=None, help="Comments show instruction hex")
 
-	args = parser.parse_args(argv[1:])
+	args = parser.parse_args(argv[1:] if argv else None)
 
 	if args.input:
 		exec_asm(args)
@@ -71,7 +71,7 @@ def main_gui(argv=None):
 
 	parser = argparse.ArgumentParser( prog="snes2asm_gui", description='Disassembles snes cartridges into practical projects', epilog='')
 
-	args = parser.parse_args(argv[1:])
+	args = parser.parse_args(argv[1:] if argv else None)
 
 	if args.input:
 		qapp = QApplication(sys.argv)
@@ -95,7 +95,7 @@ def bmp2chr(argv=None):
 	parser.add_argument('-l8', '--linear8', action='store_true', default=False, help="256 colors linear graphic output")
 	parser.add_argument('-p', '--palette', action='store_true', default=False, help="Output color *.pal file")
 	parser.add_argument('-f', '--fullsize', action='store_true', default=False, help="Ignore destination CHR file size and write whole bitmap")
-	args = parser.parse_args(argv[1:])
+	args = parser.parse_args(argv[1:] if argv else None)
 	if args.input:
 		try:
 			b = BitmapIndex.read(args.input)
@@ -178,7 +178,7 @@ def packer(argv=None):
 	parser.add_argument('-x', '--encoding', metavar='|'.join(compression.get_names()), required=True, type=str, help='Encoding algorithm')
 	parser.add_argument('-f', '--fullsize', action='store_true', default=False, help="Ignore destination file size and write full data")
 
-	args = parser.parse_args(argv[1:])
+	args = parser.parse_args(argv[1:] if argv else None)
 
 	if not args.action or args.action not in ['pack', 'unpack']:
 		parser.print_help()
@@ -231,7 +231,7 @@ def brr_cli(argv=None):
 	parser.add_argument('input', metavar='inputfile', help="Input file")
 	parser.add_argument('-o', '--output', required=True, metavar='outfile', default=None, help="File path to output")
 
-	args = parser.parse_args(argv[1:])
+	args = parser.parse_args(argv[1:] if argv else None)
 
 	if not args.action or args.action not in ['encode', 'decode']:
 		parser.print_help()

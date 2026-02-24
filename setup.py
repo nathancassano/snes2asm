@@ -18,8 +18,14 @@ setup(
     packages=find_packages(exclude=['snes2asm/tests']),
     include_package_data=True,
     package_data = {'snes2asm':['template/*'], 'images':['*']},
-    scripts=['bin/snes2asm','bin/bmp2chr', 'bin/brr'],
-    install_requires=['PyYAML', 'PyQt5'],
+    entry_points={
+        'console_scripts': [
+            'snes2asm=snes2asm:main',
+            'bmp2chr=snes2asm:bmp2chr',
+            'brr=snes2asm:brr_cli',
+        ],
+    },
+    install_requires=['PyYAML'],
     classifiers=[
         'Development Status :: 3 - Alpha',
         'Environment :: Console',
