@@ -7,6 +7,9 @@ BRR=brr
 ROM=game
 COBJ=game.o
 
+all: check-wla graphics sound spc700 encodings $(ROM).smc
+	echo "Done"
+
 # Check if WLA-DX binaries are available
 .PHONY: check-wla
 check-wla:
@@ -38,9 +41,6 @@ check-wla:
 		exit 1; \
 	}
 
-all: check-wla graphics sound spc700 encodings $(ROM).smc
-	echo "Done"
-
 .PHONY: graphics
 graphics: $(patsubst %.bmp,%.chr,$(wildcard *2bpp.bmp *3bpp.bmp *4bpp.bmp *8bpp.bmp))
 
@@ -57,7 +57,7 @@ graphics: $(patsubst %.bmp,%.chr,$(wildcard *2bpp.bmp *3bpp.bmp *4bpp.bmp *8bpp.
 	$(BMP2CHR) -b8 -o $@ $<
 
 .PHONY: sound
-sound: *.brr
+sound: $(patsubst %.wav,%.brr,$(wildcard *.wav))
 
 %.brr: %.wav
 	$(BRR) encode -o $@ $<
@@ -78,10 +78,10 @@ encodings: %encode_files
 
 %endcode_targets
 
-main.s: *.asm
+main.s: $(wildcard *.asm)
 	touch main.s
 
-$(COBJ): *.s
+$(COBJ): $(wildcard *.s)
 	$(AS) -x -v -o $@ $<
 
 $(ROM).smc: $(COBJ)
